@@ -10,24 +10,24 @@ from classy import Class
 
 ##################################################
 
-#Routine to compute the Sij matrix
-def Sij(zstakes=[0.9,1]):
+# Default values for redshift bin, cosmo parameters etc
+default_zstakes = [0.9,1]
+default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
+
+# Routine to compute the Sij matrix
+def Sij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
 
     # Run CLASS
     cosmo = Class()
-    ombh2  = 0.022 
-    omch2  = 0.12
-    omk    = 0.
-    hubble = 67.
-    ns     =  0.96
-    sig8   =  0.81 
-    cosmo.set({'omega_b':ombh2,'omega_cdm':omch2,'H0':hubble,'n_s':ns,'sigma8':sig8,'output':'mPk'})
-    h      = hubble/100. #for  conversions Mpc/h <-> Mpc
-    cosmo.compute()
+    dico_for_CLASS = cosmo_params
+    dico_for_CLASS['output'] = 'mPk'
+    cosmo.set(dico_for_CLASS)
+    cosmo.compute() 
+    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
 
     # Define arrays of z, r(z), k, P(k)...
-    nz_perbin  = 10
     nzbins     = len(zstakes)-1
+    nz_perbin  = 10
     z_arr      = np.zeros((nz_perbin,nzbins))
     comov_dist = np.zeros((nz_perbin,nzbins))
     for j in range(nzbins):
@@ -38,7 +38,7 @@ def Sij(zstakes=[0.9,1]):
     klogwidth = 10                            #Factor of width of the integration range. 10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
     kmin      = min(keq,1./comov_dist.max())/klogwidth
     kmax = max(keq,1./comov_dist.min())*klogwidth
-    nk_fft    = 2**11                         #seems to be enough. Test precision by increasing, reduce to speed up.
+    nk_fft    = 2**11                         #seems to be enough. Increase to test precision, reduce to speed up.
     k_4fft    = np.linspace(kmin,kmax,nk_fft) #linear grid on k, as we need to use an FFT
     Deltak    = kmax - kmin
     Dk        = Deltak/nk_fft
