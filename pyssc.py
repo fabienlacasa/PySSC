@@ -15,7 +15,7 @@ default_zstakes = [0.9,1]
 default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
 
 # Routine to compute the Sij matrix
-def Sij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
+def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
 
     # Run CLASS
     cosmo = Class()
