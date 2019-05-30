@@ -145,7 +145,7 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params):
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                       #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                     #Derivative dr/dz in Mpc
-    dV          = comov_dist*dcomov_dist        #Comoving volume per solid angle in Mpc^3/sr
+    dV          = comov_dist**2 * dcomov_dist   #Comoving volume per solid angle in Mpc^3/sr
     keq         = 0.02/h                        #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                            #Factor of width of the integration range. 10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -186,17 +186,17 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params):
     # Compute normalisation
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = comov_dist**2 * dcomov_dist * windows[i1,:]**2
+        integrand = dV * windows[i1,:]**2
         Inorm[i1] = integrate.simps(integrand,zz)
     
     
     # Compute Sij finally
-    prefactor  = dV*dV[:,None]*sigma2
+    prefactor  = sigma2 * (dV * dV[:,None])
     Sij        = np.zeros((nbins,nbins))
     #For i<=j
     for i1 in range(nbins):
         for i2 in range(i1,nbins):
-            integrand  = (windows[i1,:]*windows[i2,:,None])*prefactor
+            integrand  = prefactor * (windows[i1,:]**2 * windows[i2,:,None]**2)
             Sij[i1,i2] = integrate.simps(integrate.simps(integrand,zz),zz)/(Inorm[i1]*Inorm[i2])
     #Fill by symmetry   
     for i1 in range(nbins):
