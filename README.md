@@ -8,8 +8,8 @@ Contains:
 - examples.ipynb : a jupyter notebook with example applications using the module
 - plots-article.ipynb : another jupyter notebook showcasing how the computation works and reproducing the plots of the article 
 
-The module is pyssc.py.
+The module is pyssc.py
 It can be placed in your Python Path and imported with
 $ import pyssc
-It contains a function pyssc.Sij() which computes the Sij matrix (defined in the article), that allows to easily build the SSC covariance matrix.
-
+It contains a function pyssc.turboSij() which computes the Sij matrix (defined in the article) with sharp disjoint redshift bins. That allows to easily build the SSC covariance matrix.
+In progress : new pyssc.Sij() function that allows to account for more general window functions.

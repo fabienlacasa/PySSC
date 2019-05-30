@@ -113,11 +113,14 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
 
     return Sij
 
+
 # Routine to compute the Sij matrix with general window functions given as tables
 # example : weak lensing, or galaxy clustering with redshift errors
 # Inputs : window functions (format: see below), cosmological parameters (dictionnary as in CLASS's wrapper classy)
 # Format for window functions : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
 # Output : Sij matrix (size: nbins x nbins)
+# Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+# with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
 def Sij(z_arr, windows, cosmo_params=default_cosmo_params):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
@@ -143,20 +146,106 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params):
     
     # Define arrays of r(z), k, P(k)...
     zofr        = cosmo.z_of_r(zz)
-    comov_dist  = zofr[0]                       #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                     #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist   #Comoving volume per solid angle in Mpc^3/sr
-    keq         = 0.02/h                        #Equality matter radiation in 1/Mpc (more or less)
-    klogwidth   = 10                            #Factor of width of the integration range. 10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
+    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
+    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
+    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    growth      = np.zeros(nz)                              #Growth factor
+    for iz in range(nz):
+        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+    
+    # Compute normalisations
+    Inorm       = np.zeros(nbins)
+    for i1 in range(nbins):
+        integrand = dV * windows[i1,:]**2
+        Inorm[i1] = integrate.simps(integrand,zz)
+    
+    # Compute U(i,k)
+    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
     kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk_fft      = 2**11                         #seems to be enough. Increase to test precision, reduce to speed up.
-    k_4fft      = np.linspace(kmin,kmax,nk_fft) #linear grid on k, as we need to use an FFT
+    nk          = 2**11                                           #seems to be enough. Increase to test precision, reduce to speed up.
+    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
+    log10kmin   = np.log10(kmin) ; log10kmax   = np.log10(kmax)
+    kk          = np.logspace(log10kmin,log10kmax,num=nk,base=10) #logarithmic grid on k
+    Pk          = np.zeros(nk)
+    for ik in range(nk):
+        Pk[ik] = cosmo.pk(kk[ik],0.)                              #In Mpc^3
+    Uarr        = np.zeros((nbins,nk))
+    for ibin in range(nbins):
+        for ik in range(nk):
+            kr = kk[ik]*comov_dist
+            integrand     = dV * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+            Uarr[ibin,ik] = integrate.simps(integrand,zz)
+    
+    # Compute Sij finally
+    Sij        = np.zeros((nbins,nbins))
+    #For i<=j
+    for ibin in range(nbins):
+        U1 = Uarr[ibin,:]/Inorm[ibin]
+        for jbin in range(ibin,nbins):
+            U2 = Uarr[jbin,:]/Inorm[jbin]
+            integrand = kk**2 * Pk * U1 * U2
+            Sij[ibin,jbin] = 1/(2*pi**2) * integrate.simps(integrand,kk)
+    #Fill by symmetry   
+    for ibin in range(nbins):
+        for jbin in range(nbins):
+            Sij[ibin,jbin] = Sij[min(ibin,jbin),max(ibin,jbin)]
+    
+    return Sij
+
+# Alternative routine to compute the Sij matrix with general window functions given as tables
+# Inputs : window functions (format: see below), cosmological parameters (dictionnary as in CLASS's wrapper classy)
+# Format for window functions : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# Output : Sij matrix (size: nbins x nbins)
+# Equation used : Sij = int dV1 dV2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
+# with Inorm(i) = int dV window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
+# which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
+# which can be computed with an FFT
+def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params):
+
+    # Assert everything as the good type and shape, and find number of redshifts, bins etc
+    zz  = np.asarray(z_arr)
+    win = np.asarray(windows)
+    
+    assert zz.ndim==1, 'z_arr must be a 1-dimensional array'
+    assert win.ndim==2, 'windows must be a 2-dimensional array'
+    
+    nz    = len(zz)
+    nbins = win.shape[0]
+    assert win.shape[1]==nz, 'windows must have shape (nbins,nz)'
+    
+    assert zz.min()>0, 'z_arr must have values > 0'
+    
+    # Run CLASS
+    cosmo = Class()
+    dico_for_CLASS = cosmo_params
+    dico_for_CLASS['output'] = 'mPk'
+    cosmo.set(dico_for_CLASS)
+    cosmo.compute() 
+    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
+    
+    # Define arrays of r(z), k, P(k)...
+    zofr        = cosmo.z_of_r(zz)
+    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
+    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
+    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    growth      = np.zeros(nz)                              #Growth factor
+    for iz in range(nz):
+        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+    
+    keq         = 0.02/h                                    #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                        #Factor of width of the integration range.
+    #10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
+    kmin        = min(keq,1./comov_dist.max())/klogwidth
+    kmax        = max(keq,1./comov_dist.min())*klogwidth
+    nk_fft      = 2**11                                     #seems to be enough. Increase to test precision, reduce to speed up.
+    k_4fft      = np.linspace(kmin,kmax,nk_fft)             #linear grid on k, as we need to use an FFT
     Deltak      = kmax - kmin
     Dk          = Deltak/nk_fft
     Pk_4fft     = np.zeros(nk_fft)
     for ik in range(nk_fft):
-        Pk_4fft[ik] = cosmo.pk(k_4fft[ik],0.)  #In Mpc^3
+        Pk_4fft[ik] = cosmo.pk(k_4fft[ik],0.)               #In Mpc^3
     dr_fft      = np.linspace(0,nk_fft//2,nk_fft//2+1)*2*pi/Deltak
     
     # Compute necessary FFTs and make interpolation functions
@@ -174,16 +263,16 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params):
             rsum              = r1+r2
             rdiff             = abs(r1-r2)
             Icp0              = Pk_dct(rsum) ; Icm0 = Pk_dct(rdiff)
-            sigma2_nog[iz,jz] = (Icm0-Icp0)/(2*pi**2*r1*r2)
+            sigma2_nog[iz,jz] = (Icm0-Icp0)/(4*pi**2 * r1 * r2)
     #Now fill by symmetry and put back growth functions
     sigma2      = np.zeros((nz,nz))
     for iz in range(nz):
-        growth1 = cosmo.scale_independent_growth_factor(zz[iz])
+        growth1 = growth[iz]
         for jz in range(nz):
-            growth2       = cosmo.scale_independent_growth_factor(zz[jz])
+            growth2       = growth[jz]
             sigma2[iz,jz] = sigma2_nog[min(iz,jz),max(iz,jz)]*growth1*growth2            
 
-    # Compute normalisation
+    # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
         integrand = dV * windows[i1,:]**2
