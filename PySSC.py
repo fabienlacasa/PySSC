@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Filename: pyssc.py
+# Filename: PySSC.py
 
 # Modules necessary for computation
 import math ; pi=math.pi
@@ -294,4 +294,4 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params):
     
     return Sij
 
-# End of pyssc.py
+# End of PySSC.py
