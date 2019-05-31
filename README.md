@@ -16,3 +16,4 @@ The module contains functions to compute the Sij matrix (defined in the article)
 - PySSC.turboSij() : computes Sij with sharp disjoint redshift bins
 - PySSC.Sij() : computes Sij with more general window functions
 - PySSC.Sij_alt() : alternative to PySSC.Sij(), computation through a different route for comparison. Generally slower for high number of redshift integration points.
+- PySSC.Sijkl() : computes the most general case, for the covariance not only of power spectra but also of cross-spectra
