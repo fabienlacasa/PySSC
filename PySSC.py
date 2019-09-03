@@ -36,7 +36,6 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
     for j in range(nzbins):
         z_arr[:,j] = np.linspace(zstakes[j],zstakes[j+1],nz_perbin)
         comov_dist[:,j] = (cosmo.z_of_r(z_arr[:,j]))[0] #In Mpc
-    #print nzbins, z_arr
     keq       = 0.02/h                        #Equality matter radiation in 1/Mpc (more or less)
     klogwidth = 10                            #Factor of width of the integration range. 10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
     kmin      = min(keq,1./comov_dist.max())/klogwidth
@@ -121,6 +120,8 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params):
 # Output : Sij matrix (shape: nbins x nbins)
 # Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 # with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
+# This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
+# with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
@@ -175,24 +176,25 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10):
     Uarr        = np.zeros((nbins,nk))
     for ibin in range(nbins):
         for ik in range(nk):
-            kr = kk[ik]*comov_dist
+            kr            = kk[ik]*comov_dist
             integrand     = dV * windows[ibin,:]**2 * growth * np.sin(kr)/kr
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
-    Sij        = np.zeros((nbins,nbins))
+    Cl_zero     = np.zeros((nbins,nbins))
     #For i<=j
     for ibin in range(nbins):
         U1 = Uarr[ibin,:]/Inorm[ibin]
         for jbin in range(ibin,nbins):
             U2 = Uarr[jbin,:]/Inorm[jbin]
             integrand = kk**2 * Pk * U1 * U2
-            #Sij[ibin,jbin] = 1/(2*pi**2) * integrate.simps(integrand,kk)     #linear integration
-            Sij[ibin,jbin] = 1/(2*pi**2) * integrate.simps(integrand*kk,logk) #log integration
+            #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
+            Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
     #Fill by symmetry   
     for ibin in range(nbins):
         for jbin in range(nbins):
-            Sij[ibin,jbin] = Sij[min(ibin,jbin),max(ibin,jbin)]
+            Cl_zero[ibin,jbin] = Cl_zero[min(ibin,jbin),max(ibin,jbin)]
+    Sij = Cl_zero / (4*pi)
     
     return Sij
 
@@ -300,6 +302,8 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params):
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
 # Equation used :  Sijkl = 1/(2*pi^2) \int kk^2 dkk P(kk) U(i,j;kk)/Inorm(i,j) U(k,l;kk)/Inorm(k,l)
 # with Inorm(i,j) = int dV window(i,z) window(j,z) and U(i,j;kk) = int dV window(i,z) window(j,z) growth(z) j_0(kk*r)
+# This can also be seen as an angular power spectrum : Sijkl = C(ell=0,i,j,k,l)/4pi
+# with C(ell=0,i,j,k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk)/Inorm(i,j) U(k,l;kk)/Inorm(k,l)
 def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-3):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
@@ -388,7 +392,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
                 Uarr[ipair,ik] = integrate.simps(integrand,zz)
             
     # Compute Sijkl finally
-    Sijkl      = np.zeros((nbins,nbins,nbins,nbins))
+    Cl_zero     = np.zeros((nbins,nbins,nbins,nbins))
     #For ipair<=jpair
     for ipair in range(npairs):
         if flag[ipair]==0:
@@ -401,18 +405,19 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
                     kbin = pairs[0,jpair]
                     lbin = pairs[1,jpair]
                     integrand = kk**2 * Pk * U1 * U2
-                    #integral = 1/(2*pi**2) * integrate.simps(integrand,kk)     #linear integration
-                    integral = 1/(2*pi**2) * integrate.simps(integrand*kk,logk) #log integration
+                    #integral = 2/(i * integrate.simps(integrand,kk)     #linear integration
+                    integral = 2/pi * integrate.simps(integrand*kk,logk) #log integration
                     #Run through all valid symmetries to fill the 4D array
                     #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
-                    Sijkl[ibin,jbin,kbin,lbin] = integral
-                    Sijkl[ibin,jbin,lbin,kbin] = integral
-                    Sijkl[jbin,ibin,kbin,lbin] = integral
-                    Sijkl[jbin,ibin,lbin,kbin] = integral
-                    Sijkl[kbin,lbin,ibin,jbin] = integral
-                    Sijkl[kbin,lbin,jbin,ibin] = integral
-                    Sijkl[lbin,kbin,ibin,jbin] = integral
-                    Sijkl[lbin,kbin,jbin,ibin] = integral          
+                    Cl_zero[ibin,jbin,kbin,lbin] = integral
+                    Cl_zero[ibin,jbin,lbin,kbin] = integral
+                    Cl_zero[jbin,ibin,kbin,lbin] = integral
+                    Cl_zero[jbin,ibin,lbin,kbin] = integral
+                    Cl_zero[kbin,lbin,ibin,jbin] = integral
+                    Cl_zero[kbin,lbin,jbin,ibin] = integral
+                    Cl_zero[lbin,kbin,ibin,jbin] = integral
+                    Cl_zero[lbin,kbin,jbin,ibin] = integral
+    Sijkl = Cl_zero / (4*pi)       
     
     return Sijkl
 
