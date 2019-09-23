@@ -16,6 +16,7 @@ default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'si
 
 # Routine to compute the Sij matrix with top-hat disjoint redshift window functions
 # example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
+#
 # Inputs : stakes of the redshift bins (array), cosmological parameters (dictionnary as in CLASS's wrapper classy)
 # Output : Sij matrix (size: nbins x nbins)
 def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Class=None):
@@ -119,9 +120,11 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Cl
 
 # Routine to compute the Sij matrix with general window functions given as tables
 # example : weak lensing, or galaxy clustering with redshift errors
+#
 # Inputs : window functions (format: see below), cosmological parameters (dictionnary as in CLASS's wrapper classy)
 # Format for window functions : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
 # Output : Sij matrix (shape: nbins x nbins)
+#
 ## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 ## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
 ## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
@@ -207,8 +210,10 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Cla
     return Sij
 
 # Alternative routine to compute the Sij matrix with general window functions given as tables
+#
 # Inputs : window functions, cosmological parameters, same format as Sij()
 # Output : Sij matrix (shape: nbins x nbins)
+#
 ## Equation used : Sij = int dV1 dV2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
 ## with Inorm(i) = int dV window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
 ## which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
@@ -310,8 +315,10 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
     return Sij
 
 # Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
+#
 # Inputs : window functions, cosmological parameters, same format as Sij()
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
+#
 ## Equation used :  Sijkl = 1/(2*pi^2) \int kk^2 dkk P(kk) U(i,j;kk)/Inorm(i,j) U(k,l;kk)/Inorm(k,l)
 ## with Inorm(i,j) = int dV window(i,z) window(j,z) and U(i,j;kk) = int dV window(i,z) window(j,z) growth(z) j_0(kk*r)
 ## This can also be seen as an angular power spectrum : Sijkl = C(ell=0,i,j,k,l)/4pi
@@ -435,6 +442,22 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
                     Cl_zero[lbin,kbin,jbin,ibin] = integral
     Sijkl = Cl_zero / (4*pi)       
     
+    return Sijkl
+
+
+# Routine to compute the Sijkl matrix in partial sky
+#
+# Inputs : window functions, cosmological parameters, angular power spectrum of the mask
+# Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
+#
+## Equation used : Sijkl = sum_ell (2ell+1) C(ell,i,j,k,l) C(ell,mask) /(4pi*fsky)^2
+## where C(ell,i,j,k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
+## with Inorm(i,j) = int dV window(i,z) window(j,z)
+## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
+## C(ell,i,j,k,l) is computed via AngPow
+def Sijkl_psky(z_arr, windows, clmask, cosmo_params=default_cosmo_params,precision=10,tol=1e-3,cosmo_Class=None):
+
+    Sijkl = np.zeros((nbins,nbins,nbins,nbins))
     return Sijkl
 
 # End of PySSC.py
