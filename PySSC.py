@@ -475,7 +475,7 @@ def Sijkl_psky(z_arr, windows, clmask, cosmo_params=default_cosmo_params,precisi
 ## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
 ## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 
-def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
+def Sij_partsky(z_arr, windows,mask, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
 
 
     import healpy as hp
@@ -494,14 +494,9 @@ def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precisi
     
     assert zz.min()>0, 'z_arr must have values > 0'
 
-    assert isinstance(clmask,str), 'mask need to be path to fits file'
+    assert isinstance(mask,str), 'mask need to be path to fits file'
     
-    bin_centres = np.zeros(nbins)
-    for i in range(nbins):
-    	mask = (windows_T[i,:]>0)
-    	dc_bin_centres[i] = np.mean(zz[mask])
-
-    map_mask = hp.read_map(str(clmask))
+    map_mask = hp.read_map(str(mask))
     nside = hp.pixelfunc.get_nside(map_mask)  
     lmax = int(nside/10)
     var = ((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)).sum()
@@ -513,7 +508,7 @@ def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precisi
         var_est = ((2*ell+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)).sum()
         # print(abs(var - var_est)/var)
     lmax=int(lmax/2)
-    print(lmax)
+    print('lmax = %i' %(lmax))
 
     cl_mask = hp.anafast(map_mask, lmax=lmax)
     ell     = np.arange(len(cl_mask))
@@ -574,10 +569,10 @@ def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precisi
     #For i<=j
     for ibin in range(nbins):
         U1 = Uarr[ibin,:]/Inorm[ibin]
-        kr1 = kk*np.mean(comov_dist[windows_T[ibin,:]>0])
+        kr1 = kk*np.mean(comov_dist[windows[ibin,:]>0])
         for jbin in range(nbins):
             U2 = Uarr[jbin,:]/Inorm[jbin]
-            kr2 = kk*np.mean(comov_dist[windows_T[jbin,:]>0])
+            kr2 = kk*np.mean(comov_dist[windows[jbin,:]>0])
             for l in ell:
                 integrand = kk**2 * Pk * U1 * U2 * jn(l,kr1) * jn(l,kr2)
                 Cl[ell] = 2/pi * integrate.simps(integrand*kk,logk)
