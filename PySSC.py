@@ -479,7 +479,7 @@ def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precisi
 
 
     import healpy as hp
-    from scipy.special import jv
+    from scipy.special import spherical_jn as jn
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -579,7 +579,7 @@ def Sij_partsky(z_arr, windows,clmask, cosmo_params=default_cosmo_params,precisi
             U2 = Uarr[jbin,:]/Inorm[jbin]
             kr2 = kk*np.mean(comov_dist[windows_T[jbin,:]>0])
             for l in ell:
-                integrand = kk**2 * Pk * U1 * U2 * jv(l,kr1) * jv(l,kr2)
+                integrand = kk**2 * Pk * U1 * U2 * jn(l,kr1) * jn(l,kr2)
                 Cl[ell] = 2/pi * integrate.simps(integrand*kk,logk)
             #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
             Sij[ibin,jbin] = np.sum(Cl*cl_mask*(2*ell+1.)) / (4.*np.pi*fsky)**2#log integration
