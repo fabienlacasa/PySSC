@@ -502,12 +502,13 @@ def Sij_partsky(z_arr, windows,mask, cosmo_params=default_cosmo_params,precision
     cl2 = hp.anafast(map_mask, lmax=lmax*2)
     var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
     var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
+    print(abs(var - var_est)/var)
     while (abs(var - var_est)/var > 0.01):
-    	lmax = lmax*2
+        lmax = lmax*2
         var = var_est
         var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
-        # print(abs(var - var_est)/var)
-    lmax=int(lmax/2)
+        print(abs(var - var_est)/var)
+    if (lmax!=int(nside/10)): lmax=int(lmax/2)
     print('lmax = %i' %(lmax))
 
     cl_mask = hp.anafast(map_mask, lmax=lmax)
