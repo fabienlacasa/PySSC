@@ -445,10 +445,10 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
     return Sijkl
 
 
-# Routine to compute the Sijkl matrix in partial sky
+# Routine to compute the Sij matrix in partial sky
 #
-# Inputs : window functions, cosmological parameters, angular power spectrum of the mask
-# Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
+# Inputs : list of redshift bins, window functions, path to the mask of the survey (fits file, readable by healpix), cosmological parameters
+# Output : Sij matrix (shape: nbins x nbins)
 #
 ## Equation used : Sijkl = sum_ell (2ell+1) C(ell,i,j,k,l) C(ell,mask) /(4pi*fsky)^2
 ## where C(ell,i,j,k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
@@ -560,130 +560,6 @@ def Sij_psky(z_arr, windows, mask, cosmo_params=default_cosmo_params,precision=1
     
     return Sij
 
-
-# Routine to compute the Sij matrix with general window functions given as tables for a survey with partial sky coverage
-# example : weak lensing, or galaxy clustering with redshift errors
-#
-# Inputs : window functions (format: see below), survey mask (see below) cosmological parameters (dictionnary as in CLASS's wrapper classy)
-# Format for window functions : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# Format for the survey mask : path to fits file in healpix format, mask must be binary
-# Output : Sij matrix (shape: nbins x nbins)
-#
-## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
-## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-
-def Sij_partsky(z_arr, windows,mask, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
-
-
-    import healpy as hp
-    from scipy.special import spherical_jn as jn
-
-    # Assert everything as the good type and shape, and find number of redshifts, bins etc
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)
-    
-    assert zz.ndim==1, 'z_arr must be a 1-dimensional array'
-    assert win.ndim==2, 'windows must be a 2-dimensional array'
-    
-    nz    = len(zz)
-    nbins = win.shape[0]
-    assert win.shape[1]==nz, 'windows must have shape (nbins,nz)'
-    
-    assert zz.min()>0, 'z_arr must have values > 0'
-
-    assert isinstance(mask,str), 'mask need to be path to fits file'
-
-    map_mask = hp.read_map(str(mask))
-    nside = hp.pixelfunc.get_nside(map_mask)  
-    lmax = int(nside/10)
-    cl2 = hp.anafast(map_mask, lmax=lmax*2)
-    var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
-    var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
-    # print(abs(var - var_est)/var)
-    while (abs(var - var_est)/var > 0.01):
-        lmax = lmax*2
-        var = var_est
-        var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
-        # print(abs(var - var_est)/var)
-    if (lmax!=int(nside/10)): lmax=int(lmax/2)
-    print('lmax = %i' %(lmax))
-
-    cl_mask = hp.anafast(map_mask, lmax=lmax)
-    ell     = np.arange(len(cl_mask))
-    # compute fsky from the mask
-    fsky = np.sqrt(cl_mask[0]/(4*pi))
-    print('f_sky = %.2f' %(fsky))
-
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
-    
-    # Compute normalisations
-    Inorm       = np.zeros(nbins)
-    for i1 in range(nbins):
-        integrand = dV * windows[i1,:]**2
-        Inorm[i1] = integrate.simps(integrand,zz)
-    
-    # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
-    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
-    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
-    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
-    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
-    logk        = np.linspace(logkmin,logkmax,num=nk)
-    kk          = np.exp(logk)                                     #logarithmic grid on k
-    Pk          = np.zeros(nk)
-    for ik in range(nk):
-        Pk[ik] = cosmo.pk(kk[ik],0.)                              #In Mpc^3
-    Uarr        = np.zeros((nbins,nk))
-    for ibin in range(nbins):
-        for ik in range(nk):
-            kr            = kk[ik]*comov_dist
-            integrand     = dV * windows[ibin,:]**2 * growth * np.sin(kr)/kr
-            Uarr[ibin,ik] = integrate.simps(integrand,zz)
-    
-    # Compute Sij finally
-    Cl = np.zeros(len(ell))
-    Sij = np.zeros((nbins,nbins))
-    #For i<=j
-    for ibin in range(nbins):
-        U1 = Uarr[ibin,:]/Inorm[ibin]
-        kr1 = kk*np.mean(comov_dist[windows[ibin,:]>0])
-        for jbin in range(nbins):
-            U2 = Uarr[jbin,:]/Inorm[jbin]
-            kr2 = kk*np.mean(comov_dist[windows[jbin,:]>0])
-            for l in ell:
-                integrand = kk**2 * Pk * U1 * U2 * jn(l,kr1) * jn(l,kr2)
-                Cl[ell] = 2/pi * integrate.simps(integrand*kk,logk)
-            #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
-            Sij[ibin,jbin] = np.sum(Cl*cl_mask*(2*ell+1.)) / (4.*np.pi*fsky)**2#log integration
-    #Fill by symmetry   
-    # for ibin in range(nbins):
-    #     for jbin in range(nbins):
-    #         Sij[ibin,jbin] = Sij[min(ibin,jbin),max(ibin,jbin)]
-    
-    return Sij
     
 
 # End of PySSC.py
