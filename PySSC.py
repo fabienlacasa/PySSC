@@ -503,7 +503,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
 
     else :
         print('Using mask map, given as a fits file')
-        map_mask = hp.read_map(str(mask))
+        map_mask = hp.read_map(str(mask),verbose=False)
         nside = hp.pixelfunc.get_nside(map_mask)  
         lmax = int(nside/10)
         cl2 = hp.anafast(map_mask, lmax=lmax*2)
