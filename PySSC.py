@@ -4,6 +4,7 @@
 # Modules necessary for computation
 import math ; pi=math.pi
 import numpy as np
+import sys
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
 from classy import Class
@@ -319,10 +320,10 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
 # Inputs : window functions, cosmological parameters, same format as Sij()
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
 #
-## Equation used :  Sijkl = 1/(2*pi^2) \int kk^2 dkk P(kk) U(i,j;kk)/Inorm(i,j) U(k,l;kk)/Inorm(k,l)
-## with Inorm(i,j) = int dV window(i,z) window(j,z) and U(i,j;kk) = int dV window(i,z) window(j,z) growth(z) j_0(kk*r)
-## This can also be seen as an angular power spectrum : Sijkl = C(ell=0,i,j,k,l)/4pi
-## with C(ell=0,i,j,k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk)/Inorm(i,j) U(k,l;kk)/Inorm(k,l)
+## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
+## This can also be seen as an angular power spectrum : Sij = \sum_\ell \ell (\ell + 1) C(ell,i,j)
+## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-3,cosmo_Class=None):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
@@ -447,7 +448,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
 
 # Routine to compute the Sij matrix in partial sky
 #
-# Inputs : list of redshift bins, window functions, path to the mask of the survey (fits file, readable by healpix), cosmological parameters
+# Inputs : list of redshift bins, window functions, cl of the mask (fits file), path to the mask of the survey (fits file, readable by healpix), cosmological parameters
 # Output : Sij matrix (shape: nbins x nbins)
 #
 ## Equation used : Sijkl = sum_ell (2ell+1) C(ell,i,j,k,l) C(ell,mask) /(4pi*fsky)^2
@@ -455,10 +456,11 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
 ## with Inorm(i,j) = int dV window(i,z) window(j,z)
 ## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
 ## C(ell,i,j,k,l) is computed via AngPow
-def Sij_psky(z_arr, windows, mask, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
+def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
 
     import healpy as hp
     from scipy.special import spherical_jn as jn
+    from astropy.io import fits
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -473,22 +475,54 @@ def Sij_psky(z_arr, windows, mask, cosmo_params=default_cosmo_params,precision=1
     
     assert zz.min()>0, 'z_arr must have values > 0'
 
-    map_mask = hp.read_map(str(mask))
-    nside = hp.pixelfunc.get_nside(map_mask)  
-    lmax = int(nside/10)
-    cl2 = hp.anafast(map_mask, lmax=lmax*2)
-    var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
-    var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
-    pre_var = precision/100
-    while (abs(var - var_est)/var > pre_var):
-        lmax = lmax*2
-        var = var_est
-        var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
-    if (lmax!=int(nside/10)): lmax=int(lmax/2)
-    print('lmax = %i' %(lmax))
+    if (mask is None) and (clmask is None):
+        print('Need either mask or cls of mask')
+        sys.exit()
+    pre_var = 0.01#precision/100
+    if mask is None:
+        print('Using Cls given as a fits file')
+        cl_mask = hp.fitsfunc.read_cl(str(clmask))
+        ell = np.arange(len(cl_mask))
+        lmax = ell.max()
+        var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl_mask))
+        var_est = np.sum(((2*np.arange(lmax/2)+1)/(4*pi)*cl_mask[:int(lmax/2)]))
+        u=0
+        while (abs(var - var_est)/var < pre_var):
+            if (u>100): 
+                lmax = int(nside/2)
+                break
+            lmax = lmax/2
+            var = var_est
+            var_est = np.sum(((2*np.arange(lmax)+1)/(4*pi)*cl_mask[:int(lmax)]))
+            u=u+1
+            # print(abs(var - var_est)/var,lmax)
+        lmax = int(2*lmax)
+        print('lmax = %i' %(lmax))
+        cl_mask = cl_mask[:lmax]
+        ell = np.arange(lmax)
 
-    cl_mask = hp.anafast(map_mask, lmax=lmax)
-    ell     = np.arange(len(cl_mask))
+    else :
+        print('Using mask map, given as a fits file')
+        map_mask = hp.read_map(str(mask))
+        nside = hp.pixelfunc.get_nside(map_mask)  
+        lmax = int(nside/10)
+        cl2 = hp.anafast(map_mask, lmax=lmax*2)
+        var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
+        var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
+        u = 0
+        while (abs(var - var_est)/var > pre_var):
+            if (u>100): 
+                lmax = int(nside/2)
+                break
+            lmax = lmax*2
+            var = var_est
+            var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
+            u=u+1
+        if (lmax!=int(nside/10)): lmax=int(lmax/2)
+        print('lmax = %i' %(lmax))
+        cl_mask = hp.anafast(map_mask, lmax=lmax)
+        ell     = np.arange(len(cl_mask))
+    
     # compute fsky from the mask
     fsky = np.sqrt(cl_mask[0]/(4*pi))
     print('f_sky = %.2f' %(fsky))
