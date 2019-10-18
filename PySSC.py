@@ -525,7 +525,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     
     # compute fsky from the mask
     fsky = np.sqrt(cl_mask[0]/(4*pi))
-    print('f_sky = %.2f' %(fsky))
+    print('f_sky = %.4f' %(fsky))
 
     def ws(x):
         return np.sum(cl_mask*(2*ell+1)*jn(ell,x[:,None]),axis=1)
