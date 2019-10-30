@@ -476,8 +476,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     assert zz.min()>0, 'z_arr must have values > 0'
 
     if (mask is None) and (clmask is None):
-        print('Need either mask or cls of mask')
-        sys.exit()
+        raise Exception('Need either mask or cls of mask')
     pre_var = 0.01#precision/100
     if mask is None:
         print('Using Cls given as a fits file')
@@ -592,7 +591,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
         for jbin in range(nbins):
             Sij[ibin,jbin] = Sij[min(ibin,jbin),max(ibin,jbin)]
     
-    return Sij
+    return Sij/(4.*np.pi*fsky)**2
 
     
 
