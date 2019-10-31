@@ -25,7 +25,7 @@ default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'si
 # Output : Sij matrix (shape: nbins x nbins)
 ## Equation used : Sij = C(ell=0,i,j)/4pi
 ## with C(ell=0,i,j) computed by AngPow
-def Sij_AngPow(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
+def Sij_AngPow(z_arr, windows,Lmax, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
     import subprocess as spr
     import os
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
@@ -87,13 +87,12 @@ def Sij_AngPow(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,co
             path      = './AngPow_files/'
             name      = 'SSC' #the name of the new .ini file
             np.savetxt('%s%s.txt'%(path,name),np.transpose(np.vstack((kk/h,Pk*(h**3)))))
-            Lmax      = 1
             cl_kmax   = np.amax(h*kk)*h
             spr.call(['cp', '%sangpow_bench_generator.ini'%path, '%sangpow_bench_%s.ini'%(path,name)])
             ini       = open('%sangpow_bench_%s.ini'%(path,name), "a")
             ini.write("\nh = %s\nomega_matter =%s\nomega_baryon = %s\noutput_dir = %s\ncommon_file_tag = angpow_bench_%s_\npower_spectrum_input_dir = %s\npower_spectrum_input_file = %s.txt\nmean = %lf,%lf\nwidth = %lf,%lf\nLmax = %i\ncl_kmax = %lf"%(h,Omega_m,Omega_b,path,name,path,name,mean1,mean2,width1,width2,Lmax,cl_kmax))
             ini.close()
             os.system('%sAngPow/bin/angpow %sangpow_bench_%s.ini'%(path,path,name))
-            _,cl_angpow = np.loadtxt('%sangpow_bench_%s_cl.txt'%(path,name),unpack=True)
-            Sij[bins_1,bins_2] = cl_angpow / (4*pi)
+            l_angpow,cl_angpow = np.loadtxt('%sangpow_bench_%s_cl.txt'%(path,name),ndmin=2,unpack=True)
+            Sij[bins_1,bins_2] = cl_angpow[0] / (4*pi)
     return Sij
