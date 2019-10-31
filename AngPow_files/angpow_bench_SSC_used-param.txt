@@ -1,14 +1,14 @@
 Parameters...
 Lmin = 0Lmax = 1linearStep = 40logStep = 1.15
-Select[0]: TopHat mean = 1.45 width = 0.05 radial_quad1D = Trapezes radial_order = 50
-Select[1]: TopHat mean = 1.45 width = 0.05 radial_quad1D = Trapezes radial_order = 50
+Select[0]: TopHat mean = 1.4914 width = 0.0086 radial_quad1D = Trapezes radial_order = 50
+Select[1]: TopHat mean = 1.4914 width = 0.0086 radial_quad1D = Trapezes radial_order = 50
 cross_depth = -1
 smooth_edges (for TopHat select.) = 0
 n_sigma_cut = 5
 algo_type = 1
 limber_lthr1 = -1
 limber_lthr2 = -1
-cl_kmax = 0.251056
+cl_kmax = 0.134
 chebyshev_order = 9, 9
 n_bessel_roots_per_interval = 100
 total_weight_cut = 0

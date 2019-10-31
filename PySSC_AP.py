@@ -1,3 +1,20 @@
+#!/usr/bin/python
+# Filename: PySSC_AP.py
+
+# Modules necessary for computation
+import math ; pi=math.pi
+import numpy as np
+import sys
+import scipy.integrate as integrate
+from scipy.interpolate import interp1d
+from classy import Class
+
+##################################################
+
+# Default values for redshift bin, cosmo parameters etc
+default_zstakes = [0.9,1]
+default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
+
 # Routine to compute the Sij matrix with general window functions given as tables using AngPow for redshift integration
 # Note that the user may type a "make" in PySSC/AngPow_files/AngPow
 # So far only in the TopHat case
@@ -57,7 +74,6 @@ def Sij_AngPow(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,co
         z_ald_bin = win[i,:].astype(bool)*zz
         mange_min[i] = np.amin((z_ald_bin)[z_ald_bin!=0])
         mange_max[i] = np.amax((z_ald_bin)[z_ald_bin!=0])
-        #mange_min[i] = mange_max[i]-0.1
     Sij = np.zeros((nbins,nbins))
     for bins_1 in range(nbins):
         for bins_2 in range(nbins):
