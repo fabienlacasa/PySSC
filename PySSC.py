@@ -456,7 +456,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
 ## with Inorm(i,j) = int dV window(i,z) window(j,z)
 ## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
 ## C(ell,i,j,k,l) is computed via AngPow
-def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
+def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None,verbose=False):
 
     import healpy as hp
     from scipy.special import spherical_jn as jn
@@ -476,15 +476,18 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     assert zz.min()>0, 'z_arr must have values > 0'
 
     if (mask is None) and (clmask is None):
-        raise Exception('Need either mask or cls of mask')
-    pre_var = 0.01#precision/100
+        raise Exception('Need either mask or Cls of mask')
+
+    pre_var = 0.01 #precision/100
     if mask is None:
-        print('Using Cls given as a fits file')
+        if verbose:
+            print('Using Cls given as a fits file')
         cl_mask = hp.fitsfunc.read_cl(str(clmask))
         ell = np.arange(len(cl_mask))
         lmax = ell.max()
         var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl_mask))
         var_est = np.sum(((2*np.arange(lmax/2)+1)/(4*pi)*cl_mask[:int(lmax/2)]))
+        #print('before lmax search',abs(var - var_est)/var,lmax,var,var_est)
         u=0
         while (abs(var - var_est)/var < pre_var):
             if (u>100): 
@@ -494,20 +497,22 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
             var = var_est
             var_est = np.sum(((2*np.arange(lmax)+1)/(4*pi)*cl_mask[:int(lmax)]))
             u=u+1
-            # print(abs(var - var_est)/var,lmax)
+            #print('In lmax search',abs(var - var_est)/var,lmax,var,var_est,u)
         lmax = int(2*lmax)
-        print('lmax = %i' %(lmax))
+        if verbose:
+            print('lmax = %i' %(lmax))
         cl_mask = cl_mask[:lmax]
         ell = np.arange(lmax)
-
     else :
-        print('Using mask map, given as a fits file')
+        if verbose:
+            print('Using mask map, given as a fits file')
         map_mask = hp.read_map(str(mask),verbose=False)
         nside = hp.pixelfunc.get_nside(map_mask)  
         lmax = int(nside/10)
         cl2 = hp.anafast(map_mask, lmax=lmax*2)
         var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
         var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
+        #print('before lmax search',abs(var - var_est)/var,lmax,var,var_est)
         u = 0
         while (abs(var - var_est)/var > pre_var):
             if (u>100): 
@@ -517,17 +522,23 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
             var = var_est
             var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
             u=u+1
+            #print('In lmax search',abs(var - var_est)/var,lmax,var,var_est,u)
         if (lmax!=int(nside/10)): lmax=int(lmax/2)
-        print('lmax = %i' %(lmax))
+        if verbose:
+            print('lmax = %i' %(lmax))
         cl_mask = hp.anafast(map_mask, lmax=lmax)
         ell     = np.arange(len(cl_mask))
     
     # compute fsky from the mask
     fsky = np.sqrt(cl_mask[0]/(4*pi))
-    print('f_sky = %.4f' %(fsky))
+    if verbose:
+        print('f_sky = %.4f' %(fsky))
 
+    # Radial window function of the survey. Eq.B.7 of arXiv:1809.05437
+    # ws(x) = 4pi/Omega_survey^2 sum_ell (2ell+1) Cl(mask) jl(x)
+    # with 4pi/Omega_survey^2 = 1/(4pi*fsky^2)
     def ws(x):
-        return np.sum(cl_mask*(2*ell+1)*jn(ell,x[:,None]),axis=1)
+        return np.sum(cl_mask*(2*ell+1)*jn(ell,x[:,None]),axis=1)/(4*pi*fsky**2)
 
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -577,6 +588,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
+    # Equations B.4, B.5, B.6 from arXiv:1809.05437
     Sij     = np.zeros((nbins,nbins))
     #For i<=j
     for ibin in range(nbins):
@@ -584,14 +596,14 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
         for jbin in range(ibin,nbins):
             U2 = Uarr[jbin,:]/Inorm[jbin]
             integrand = kk**2 * Pk * U1 * U2
-            #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
-            Sij[ibin,jbin] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+            #Sij[ibin,jbin] = 1/(2*pi**2) * integrate.simps(integrand,kk)     #linear integration
+            Sij[ibin,jbin] = 1/(2*pi**2) * integrate.simps(integrand*kk,logk) #log integration
     #Fill by symmetry   
     for ibin in range(nbins):
         for jbin in range(nbins):
             Sij[ibin,jbin] = Sij[min(ibin,jbin),max(ibin,jbin)]
     
-    return Sij/(4.*np.pi*fsky)**2
+    return Sij
 
     
 
