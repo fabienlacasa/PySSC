@@ -456,7 +456,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
 ## with Inorm(i,j) = int dV window(i,z) window(j,z)
 ## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
 ## C(ell,i,j,k,l) is computed via AngPow
-def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None,verbose=False):
+def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None,var_precision=0.01,verbose=False,debug=False):
 
     import healpy as hp
     from scipy.special import spherical_jn as jn
@@ -478,61 +478,46 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     if (mask is None) and (clmask is None):
         raise Exception('Need either mask or Cls of mask')
 
-    pre_var = 0.01 #precision/100
-    if mask is None:
+    if mask is None: # User gives Cl(mask)
         if verbose:
             print('Using Cls given as a fits file')
         cl_mask = hp.fitsfunc.read_cl(str(clmask))
         ell = np.arange(len(cl_mask))
-        lmax = ell.max()
-        var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl_mask))
-        var_est = np.sum(((2*np.arange(lmax/2)+1)/(4*pi)*cl_mask[:int(lmax/2)]))
-        #print('before lmax search',abs(var - var_est)/var,lmax,var,var_est)
-        u=0
-        while (abs(var - var_est)/var < pre_var):
-            if (u>100): 
-                lmax = int(nside/2)
-                break
-            lmax = lmax/2
-            var = var_est
-            var_est = np.sum(((2*np.arange(lmax)+1)/(4*pi)*cl_mask[:int(lmax)]))
-            u=u+1
-            #print('In lmax search',abs(var - var_est)/var,lmax,var,var_est,u)
-        lmax = int(2*lmax)
-        if verbose:
-            print('lmax = %i' %(lmax))
-        cl_mask = cl_mask[:lmax]
-        ell = np.arange(lmax)
-    else :
+        lmaxofcl = ell.max()
+    else : # User gives mask as a map
         if verbose:
             print('Using mask map, given as a fits file')
         map_mask = hp.read_map(str(mask),verbose=False)
-        nside = hp.pixelfunc.get_nside(map_mask)  
-        lmax = int(nside/10)
-        cl2 = hp.anafast(map_mask, lmax=lmax*2)
-        var = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*cl2[:lmax+1]))
-        var_est = np.sum(((2*np.arange(2*lmax+1)+1)/(4*pi)*cl2))
-        #print('before lmax search',abs(var - var_est)/var,lmax,var,var_est)
-        u = 0
-        while (abs(var - var_est)/var > pre_var):
-            if (u>100): 
-                lmax = int(nside/2)
-                break
-            lmax = lmax*2
-            var = var_est
-            var_est = np.sum(((2*np.arange(lmax+1)+1)/(4*pi)*hp.anafast(map_mask, lmax=lmax)))
-            u=u+1
-            #print('In lmax search',abs(var - var_est)/var,lmax,var,var_est,u)
-        if (lmax!=int(nside/10)): lmax=int(lmax/2)
-        if verbose:
-            print('lmax = %i' %(lmax))
-        cl_mask = hp.anafast(map_mask, lmax=lmax)
-        ell     = np.arange(len(cl_mask))
+        nside    = hp.pixelfunc.get_nside(map_mask)
+        lmaxofcl = 2*nside
+        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        ell      = np.arange(lmaxofcl+1)
     
     # compute fsky from the mask
     fsky = np.sqrt(cl_mask[0]/(4*pi))
     if verbose:
         print('f_sky = %.4f' %(fsky))
+
+    # Search of the best lmax for all later sums on ell
+    # method: smallest lmax so that we have convergence of the variance
+    # var = sum_ell (2*ell+1)/4pi * Clmask
+    summand       = (2*ell+1)/(4*pi)*cl_mask
+    var_target    = np.sum(summand)
+    #Initialisation
+    lmax          = 1
+    var_est       = np.sum(summand[:lmax])
+    while (abs(var_est - var_target)/var_target > var_precision and lmax < lmaxofcl):
+        lmax      = lmax +1
+        var_est   = np.sum(summand[:lmax])
+        if debug:
+            print('In lmax search',lmax,abs(var_est - var_target)/var_target,var_target,var_est)
+    lmax = min(lmax,lmaxofcl) #make sure we didnt overshoot at the last iteration
+    if verbose:
+        print('lmax = %i' %(lmax))
+
+    # Cut ell and Cl_mask to lmax, for all later computations
+    cl_mask = cl_mask[:lmax]
+    ell     = np.arange(len(cl_mask))
 
     # Radial window function of the survey. Eq.B.7 of arXiv:1809.05437
     # ws(x) = 4pi/Omega_survey^2 sum_ell (2ell+1) Cl(mask) jl(x)
