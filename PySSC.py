@@ -15,6 +15,10 @@ from classy import Class
 default_zstakes = [0.9,1]
 default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
 
+##################################################
+##########      FULL SKY ROUTINES       ##########
+##################################################
+
 # Routine to compute the Sij matrix with top-hat disjoint redshift window functions
 # example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
 #
@@ -322,7 +326,7 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
 #
 ## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 ## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = \sum_\ell \ell (\ell + 1) C(ell,i,j)
+## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
 ## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
 def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-3,cosmo_Class=None):
 
@@ -445,6 +449,9 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
     
     return Sijkl
 
+##################################################
+##########     PARTIAL SKY ROUTINES     ##########
+##################################################
 
 # Routine to compute the Sij matrix in partial sky
 #
@@ -455,7 +462,6 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
 ## where C(ell,i,j,k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
 ## with Inorm(i,j) = int dV window(i,z) window(j,z)
 ## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
-## C(ell,i,j,k,l) is computed via AngPow
 def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None,var_precision=0.01,verbose=False,debug=False):
 
     import healpy as hp
