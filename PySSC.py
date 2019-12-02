@@ -616,11 +616,12 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     for ik in range(nk):
         Pk[ik] = cosmo.pk(kk[ik],0.)                              #In Mpc^3
     Uarr        = np.zeros((nbins,nk,nell))
-    for ibin in range(nbins):
-        for ik in range(nk):
-            kr            = kk[ik]*comov_dist
-            for ll in ell:
-                integrand        = dV * windows[ibin,:]**2 * growth * jn(ll,kr)
+    for ik in range(nk):
+        kr            = kk[ik]*comov_dist
+        for ll in ell:
+            bessel_jl = jn(ll,kr)
+            for ibin in range(nbins):
+                integrand        = dV * windows[ibin,:]**2 * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
@@ -667,10 +668,15 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
 # Inputs : window functions, cosmological parameters, same format as Sij()
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
 #
-## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+## Equation used :  Sijkl = 1/(2*pi^2) int kk^2 dkk P(kk) U(i,j;k)/Inorm(i) U(j,k)/Inorm(j)
 ## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
 ## This can also be seen as an angular power spectrum : Sij = \sum_\ell \ell (\ell + 1) C(ell,i,j)
 ## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+
+## Equation used : Sijkl = sum_ell (2ell+1) C(ell;i,j;k,l) C(ell,mask) /(4pi*fsky)^2
+## where C(ell;i,j;k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
+## with Inorm(i,j) = int dV window(i,z) window(j,z)
+## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
 def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,var_tol=0.05,tol=1e-3,cosmo_Class=None,verbose=False,debug=False):
 
     import healpy as hp
@@ -719,14 +725,9 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
         print('lmax = %i' %(lmax))
 
     # Cut ell and Cl_mask to lmax, for all later computations
-    cl_mask = cl_mask[:lmax]
-    ell     = np.arange(len(cl_mask))
-
-    # Radial window function of the survey. Eq.B.7 of arXiv:1809.05437
-    # ws(x) = 4pi/Omega_survey^2 sum_ell (2ell+1) Cl(mask) jl(x)
-    # with 4pi/Omega_survey^2 = 1/(4pi*fsky^2)
-    def ws(x):
-        return np.sum(cl_mask*(2*ell+1)*jn(ell,x[:,None]),axis=1)/(4*pi*fsky**2)
+    cl_mask = cl_mask[:(lmax+1)]
+    nell    = lmax+1
+    ell     = np.arange(nell) #0..lmax
 
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -759,7 +760,7 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
             pairs[1,count] = jbin
             count +=1
         
-    # Compute normalisations
+    # Compute normalisations Inorm(i,j) = int dV window(i,z) window(j,z)
     Inorm       = np.zeros(npairs)
     Inorm2D     = np.zeros((nbins,nbins))
     for ipair in range(npairs):
@@ -781,7 +782,7 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
         if ratio<tol:
             flag[ipair]=1
     
-    # Compute U(i,j;kk)
+    # Compute U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)  
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -794,42 +795,58 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
     Pk          = np.zeros(nk)
     for ik in range(nk):
         Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
-    Uarr        = np.zeros((npairs,nk))
-    for ipair in range(npairs):
-        if flag[ipair]==0:
-            ibin = pairs[0,ipair]
-            jbin = pairs[1,ipair]
-            for ik in range(nk):
-                kr             = kk[ik]*comov_dist
-                integrand      = dV * windows[ibin,:] * windows[jbin,:] * growth * ws(kr)
-                Uarr[ipair,ik] = integrate.simps(integrand,zz)
-            
-    # Compute Sijkl finally
-    Sijkl     = np.zeros((nbins,nbins,nbins,nbins))
+    Uarr        = np.zeros((npairs,nk,nell))
+    for ik in range(nk):
+        kr            = kk[ik]*comov_dist
+        for ll in ell:
+            bessel_jl = jn(ll,kr)
+            for ipair in range(npairs):
+                if flag[ipair]==0:
+                    ibin = pairs[0,ipair]
+                    jbin = pairs[1,ipair]
+                    integrand        = dV * windows[ibin,:] * windows[jbin,:] * growth * bessel_jl
+                    Uarr[ipair,ik,ll] = integrate.simps(integrand,zz)
+
+    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
+    Cl_XY      = np.zeros((npairs,npairs,nell))
+    for ll in ell:
+        #For ipair<=jpair
+        for ipair in range(npairs):
+            if flag[ipair]==0:
+                U1 = Uarr[ipair,:,ll]/Inorm[ipair]
+                for jpair in range(ipair,npairs):
+                    if flag[jpair]==0:
+                        U2 = Uarr[jpair,:,ll]/Inorm[jpair]
+                        integrand = kk**2 * Pk * U1 * U2
+                        #Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand,kk)     #linear integration
+                        Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+        #Fill by symmetry   
+        for ipair in range(npairs):
+            for jpair in range(npairs):
+                Cl_XY[ipair,jpair,ll] = Cl_XY[min(ipair,jpair),max(ipair,jpair),ll]
+
+    # Finally sum over ell to get Sijkl = sum_ell (2ell+1) C(ell;i,j;k;l) C(ell,mask) /(4pi*fsky)^2
+    Sijkl   = np.zeros((nbins,nbins,nbins,nbins))
     #For ipair<=jpair
     for ipair in range(npairs):
         if flag[ipair]==0:
-            U1 = Uarr[ipair,:]/Inorm[ipair]
             ibin = pairs[0,ipair]
             jbin = pairs[1,ipair]
             for jpair in range(ipair,npairs):
                 if flag[jpair]==0:
-                    U2 = Uarr[jpair,:]/Inorm[jpair]
                     kbin = pairs[0,jpair]
                     lbin = pairs[1,jpair]
-                    integrand = kk**2 * Pk * U1 * U2
-                    #integral = 2/(i * integrate.simps(integrand,kk)     #linear integration
-                    integral = 1/(2*pi**2) * integrate.simps(integrand*kk,logk) #log integration
+                    sum_ell = np.sum((2*ell+1)*cl_mask*Cl_XY[ipair,jpair,:])/(4*pi*fsky)**2
                     #Run through all valid symmetries to fill the 4D array
                     #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
-                    Sijkl[ibin,jbin,kbin,lbin] = integral
-                    Sijkl[ibin,jbin,lbin,kbin] = integral
-                    Sijkl[jbin,ibin,kbin,lbin] = integral
-                    Sijkl[jbin,ibin,lbin,kbin] = integral
-                    Sijkl[kbin,lbin,ibin,jbin] = integral
-                    Sijkl[kbin,lbin,jbin,ibin] = integral
-                    Sijkl[lbin,kbin,ibin,jbin] = integral
-                    Sijkl[lbin,kbin,jbin,ibin] = integral
+                    Sijkl[ibin,jbin,kbin,lbin] = sum_ell
+                    Sijkl[ibin,jbin,lbin,kbin] = sum_ell
+                    Sijkl[jbin,ibin,kbin,lbin] = sum_ell
+                    Sijkl[jbin,ibin,lbin,kbin] = sum_ell
+                    Sijkl[kbin,lbin,ibin,jbin] = sum_ell
+                    Sijkl[kbin,lbin,jbin,ibin] = sum_ell
+                    Sijkl[lbin,kbin,ibin,jbin] = sum_ell
+                    Sijkl[lbin,kbin,jbin,ibin] = sum_ell
     
     return Sijkl
     
