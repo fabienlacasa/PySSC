@@ -150,14 +150,17 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     
     for bins_1 in range(nbins):
         for bins_2 in range(nbins):
-            np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_1,:]>threshold],((win[bins_1,:])[win[bins_1,:]>threshold])**2))))
-            np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_2,:]>threshold],((win[bins_2,:])[win[bins_2,:]>threshold])**2))))
-            # running AngPow
-            os.system('%sAngPow/bin/angpow %sangpow_bench_%s.ini'%(path,path,name))
-            # Take the [0-1] column of the txt file (X-C_ell's)
-            l_angpow,cl_angpow = np.loadtxt('%sangpow_bench_%s_cl.txt'%(path,name),ndmin=2,unpack=True)
-            #Sij[bins_1,bins_2] = cl_angpow[0] / (4*pi) #So far in full sky only need C_{ell=0}
-            Sij[bins_1,bins_2] = (1/(4*np.pi*fsky))**2*np.sum((2*l_angpow+1)*cl_mask[0:lmax]*cl_angpow)
+            if bins_1 >= bins_2 :
+                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_1,:]>threshold],((win[bins_1,:])[win[bins_1,:]>threshold])**2))))
+                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_2,:]>threshold],((win[bins_2,:])[win[bins_2,:]>threshold])**2))))
+                # running AngPow
+                os.system('%sAngPow/bin/angpow %sangpow_bench_%s.ini'%(path,path,name))
+                # Take the [0-1] column of the txt file (X-C_ell's)
+                l_angpow,cl_angpow = np.loadtxt('%sangpow_bench_%s_cl.txt'%(path,name),ndmin=2,unpack=True)
+                #Sij[bins_1,bins_2] = cl_angpow[0] / (4*pi) #So far in full sky only need C_{ell=0}
+                Sij[bins_1,bins_2] = (1/(4*np.pi*fsky))**2*np.sum((2*l_angpow+1)*cl_mask[0:lmax]*cl_angpow)
+                Sij[bins_2,bins_1] = Sij[bins_1,bins_2]
+            else: pass
     
     os.remove('%sangpow_bench_%s_cl.txt'%(path,name))
     os.remove('%sangpow_bench_%s_ctheta.txt'%(path,name))
