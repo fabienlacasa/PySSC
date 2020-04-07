@@ -487,8 +487,8 @@ def find_lmax(ell,cl_mask,var_tol,debug=False):
 ## where C(ell,i,j) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
 ## with Inorm(i) = int dV window(i,z)^2
 ## and U(i;kk,ell) = int dV window(i,z)^2 growth(z) j_ell(kk*r)
-def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None,var_tol=0.05,verbose=False,debug=False):
-
+def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=12,cosmo_Class=None,var_tol=0.05,verbose=False,debug=False):
+    windows[windows<5e-100] = 0.
     import healpy as hp
     from scipy.special import spherical_jn as jn
     from astropy.io import fits
@@ -607,6 +607,8 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
     kmax        = max(keq,1./comov_dist.min())*klogwidth
+    print(kmax)
+    kmax = 0.005
     nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
     #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
     logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
