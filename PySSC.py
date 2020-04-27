@@ -189,6 +189,11 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Cla
     Pk          = np.zeros(nk)
     for ik in range(nk):
         Pk[ik] = cosmo.pk(kk[ik],0.)                              #In Mpc^3
+    #kk = (2*np.pi/(1000))*np.arange(1,1001)
+    #Pk = np.ones(len(kk))
+    #kk*=h
+    #Pk/=(h**3)
+    #nk = len(kk)
     Uarr        = np.zeros((nbins,nk))
     for ibin in range(nbins):
         for ik in range(nk):
@@ -204,8 +209,8 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Cla
         for jbin in range(ibin,nbins):
             U2 = Uarr[jbin,:]/Inorm[jbin]
             integrand = kk**2 * Pk * U1 * U2
-            #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
-            Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+            Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
+            #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
     #Fill by symmetry   
     for ibin in range(nbins):
         for jbin in range(nbins):

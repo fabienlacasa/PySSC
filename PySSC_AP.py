@@ -126,17 +126,16 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     for ik in range(nk):
         Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
     
-    
-    Omega_b     = default_cosmo_params["omega_b"]  /h**2
-    Omega_cdm   = default_cosmo_params["omega_cdm"]/h**2
+    Omega_b     = cosmo.Omega_b() #default_cosmo_params["omega_b"]  /h**2
+    Omega_cdm   = cosmo.Omega_cdm() #default_cosmo_params["omega_cdm"]/h**2
     Omega_m     = Omega_b + Omega_cdm
     path        = './AngPow_files/' #loc of all AngPow stuffs
     name        = 'SSC' #the name of the new AngPow .ini file
     np.savetxt('%s%s_Pk.txt'%(path,name),np.transpose(np.vstack((kk/h,Pk*(h**3))))) #AngPow needs Pk(z=0)
-    cl_kmax     = np.amax(kk)*h #Cl is a mixing of modes : cl_kmax is the maximum k of the integral made by AngPow !!!!!!!!!!!!!!!!!!!!!!!!!!!!! *h ou /h?
+    cl_kmax     = np.amax(kk)/h #Cl is a mixing of modes : cl_kmax is the maximum k of the integral made by AngPow !!!!!!!!!!!!!!!!!!!!!!!!!!!!! *h ou /h?
     
     # define all AngPow parameters
-    ini = {'Lmin' : 0,'Lmax' : lmax ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : cl_kmax,'radial_quad'  : 'trapezes','radial_order' : 50,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': Omega_m ,'omega_baryon': Omega_b,'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : 1e-5,'pw_kmax' : 100.,}
+    ini = {'Lmin' : 0,'Lmax' : lmax ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : cl_kmax,'radial_quad'  : 'trapezes','radial_order' : 50,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': Omega_m ,'omega_baryon': Omega_b,'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : np.amin(kk/h),'pw_kmax' : np.amax(kk/h),}
     
     # write all AngPow parameters in a .ini file
     out = '%sangpow_bench_%s.ini'%(path,name)
@@ -145,14 +144,17 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
          fo.write(str(k) + '='+ str(v) + '\n')
     fo.close()
     
-    threshold = 5e-100
     Sij       = np.zeros((nbins,nbins))
     
     for bins_1 in range(nbins):
         for bins_2 in range(nbins):
             if bins_1 >= bins_2 :
-                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_1,:]>threshold],((win[bins_1,:])[win[bins_1,:]>threshold])**2))))
-                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_2,:]>threshold],((win[bins_2,:])[win[bins_2,:]>threshold])**2))))
+                z_1 = zz[win[bins_1,:]!=0]
+                w_1 = (win[bins_1,:])[win[bins_1,:]!=0]
+                z_2 = zz[win[bins_2,:]!=0]
+                w_2 = (win[bins_2,:])[win[bins_2,:]!=0]
+                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((z_1,(w_1)**2))))
+                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((z_2,(w_2)**2))))
                 #np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_1,:]))**2))))
                 #np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_2,:]))**2))))
                 # running AngPow
@@ -177,7 +179,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
 
 
 
-def Sij_AngPow_psky(z_arr,windows,cosmo_params=default_cosmo_params,precision=12,cosmo_Class=None):
+def Sij_AngPow_fsky(z_arr,windows,cosmo_params=default_cosmo_params,precision=12,cosmo_Class=None):
         
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -205,7 +207,9 @@ def Sij_AngPow_psky(z_arr,windows,cosmo_params=default_cosmo_params,precision=12
     
     h           = cosmo.h() #for  conversions Mpc/h <-> Mpc
     zofr        = cosmo.z_of_r(zz)
-    comov_dist  = zofr[0] 
+    comov_dist  = zofr[0]                                  #Comoving distance r(z) in Mpc
+    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
+    dV          = comov_dist**2 * dcomov_dist 
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -226,10 +230,10 @@ def Sij_AngPow_psky(z_arr,windows,cosmo_params=default_cosmo_params,precision=12
     path        = './AngPow_files/' #loc of all AngPow stuffs
     name        = 'SSC' #the name of the new AngPow .ini file
     np.savetxt('%s%s_Pk.txt'%(path,name),np.transpose(np.vstack((kk/h,Pk*(h**3))))) #AngPow needs Pk(z=0)
-    cl_kmax     = np.amax(kk)*h #Cl is a mixing of modes : cl_kmax is the maximum k of the integral made by AngPow !!!!!!!!!!!!!!!!!!!!!!!!!!!!! *h ou /h?
+    cl_kmax     = np.amax(kk)*h #Cl is a mixing of modes : cl_kmax is the maximum k of the integral made by AngPow
     
     # define all AngPow parameters
-    ini = {'Lmin' : 0,'Lmax' : 1 ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : cl_kmax,'radial_quad'  : 'trapezes','radial_order' : 50,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': Omega_m ,'omega_baryon': Omega_b,'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : 1e-5,'pw_kmax' : 100.,}
+    ini = {'Lmin' : 0,'Lmax' : 1 ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : cl_kmax,'radial_quad'  : 'trapezes','radial_order' : 50,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': Omega_m ,'omega_baryon': Omega_b,'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : 1e-5,'pw_kmax' : 1,}
     
     # write all AngPow parameters in a .ini file
     out = '%sangpow_bench_%s.ini'%(path,name)
@@ -238,21 +242,21 @@ def Sij_AngPow_psky(z_arr,windows,cosmo_params=default_cosmo_params,precision=12
          fo.write(str(k) + '='+ str(v) + '\n')
     fo.close()
     
-    threshold = 5e-100
     Sij       = np.zeros((nbins,nbins))
     
     for bins_1 in range(nbins):
         for bins_2 in range(nbins):
             if bins_1 >= bins_2 :
-                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_1,:]>threshold],((win[bins_1,:])[win[bins_1,:]>threshold])**2))))
-                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz[win[bins_2,:]>threshold],((win[bins_2,:])[win[bins_2,:]>threshold])**2))))
-                #np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_1,:]))**2))))
-                #np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_2,:]))**2))))
+                z_1 = zz[win[bins_1,:]!=0]
+                w_1 = (win[bins_1,:])[win[bins_1,:]!=0]
+                z_2 = zz[win[bins_2,:]!=0]
+                w_2 = (win[bins_2,:])[win[bins_2,:]!=0]
+                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((z_1,w_1**2))))
+                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((z_2,w_2**2))))
                 # running AngPow
                 os.system('%sAngPow/bin/angpow %sangpow_bench_%s.ini'%(path,path,name))
                 # Take the [0-1] column of the txt file (X-C_ell's)
                 l_angpow,cl_angpow = np.loadtxt('%sangpow_bench_%s_cl.txt'%(path,name),ndmin=2,unpack=True)
-                #Sij[bins_1,bins_2] = cl_angpow[0] / (4*pi) #So far in full sky only need C_{ell=0}
                 Sij[bins_1,bins_2] = cl_angpow/(4*np.pi)
                 Sij[bins_2,bins_1] = Sij[bins_1,bins_2]
             else: pass
