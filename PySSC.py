@@ -126,15 +126,30 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Cl
 # Routine to compute the Sij matrix with general window functions given as tables
 # example : weak lensing, or galaxy clustering with redshift errors
 #
-# Inputs : window functions (format: see below), cosmological parameters (dictionnary as in CLASS's wrapper classy)
-# Format for window functions : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# Inputs :
+# - redshifts and window functions
+#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# - cosmology or cosmological parameters
+#   Format : dictionnary with format of CLASS's wrapper classy
 # Output : Sij matrix (shape: nbins x nbins)
 #
+# Options :
+# - convention : convention used in the definition of the window functions/kernel.
+#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+#   Details below
+# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+#
 ## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
-## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Class=None):
+## with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
+## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)^S/4pi
+## with C(ell=0,i,j)^S = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+##
+## dX depends on the convention used to define the window functions : Cl(i,j) = int dX window(i,z) window(j,z) P(k=(ell+1/2)/r,z)
+## 0 : dX = dV = dV/dz dz = r^2(z) dr/dz dz. Used in Lacasa & Grain 2019.
+## 1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
+## The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe)
+## which is a constant so does not matter in the ratio here.
+def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -165,15 +180,22 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Cla
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle dV/dz in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+
+    if convention==0:
+        dX_dz = dV_dz
+    elif convention==1:
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
     
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dV * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**2
         Inorm[i1] = integrate.simps(integrand,zz)
     
     # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
@@ -193,7 +215,7 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,cosmo_Cla
     for ibin in range(nbins):
         for ik in range(nk):
             kr            = kk[ik]*comov_dist
-            integrand     = dV * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+            integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
