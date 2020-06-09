@@ -238,14 +238,23 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
 
 # Alternative routine to compute the Sij matrix with general window functions given as tables
 #
-# Inputs : window functions, cosmological parameters, same format as Sij()
+# Inputs :
+# - redshifts and window functions
+#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# - cosmology or cosmological parameters
+#   Format : dictionnary with format of CLASS's wrapper classy
 # Output : Sij matrix (shape: nbins x nbins)
 #
-## Equation used : Sij = int dV1 dV2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
-## with Inorm(i) = int dV window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
+# Options :
+# - convention : convention used in the definition of the window functions/kernel.
+#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+#   Details in Sij above
+#
+## Equation used : Sij = int dX1 dX2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
+## with Inorm(i) = int dX window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
 ## which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
 ## which can be computed with an FFT
-def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
+def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -276,10 +285,17 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+
+    if convention==0:
+        dX_dz = dV_dz
+    elif convention==1:
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
     
     keq         = 0.02/h                                    #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                        #Factor of width of the integration range.
@@ -322,12 +338,12 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dV * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**2
         Inorm[i1] = integrate.simps(integrand,zz)
     
     
     # Compute Sij finally
-    prefactor  = sigma2 * (dV * dV[:,None])
+    prefactor  = sigma2 * (dX_dz * dX_dz[:,None])
     Sij        = np.zeros((nbins,nbins))
     #For i<=j
     for i1 in range(nbins):
@@ -343,14 +359,25 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None):
 
 # Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
 #
-# Inputs : window functions, cosmological parameters, same format as Sij()
+# Inputs :
+# - redshifts and window functions
+#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# - cosmology or cosmological parameters
+#   Format : dictionnary with format of CLASS's wrapper classy
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
 #
+# Options :
+# - convention : convention used in the definition of the window functions/kernel.
+#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+#   Details in Sij above
+# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+# - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
+#
 ## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
+## with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
 ## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
 ## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-3,cosmo_Class=None):
+def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,tol=1e-3):
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -381,10 +408,17 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+
+    if convention==0:
+        dX_dz = dV_dz
+    elif convention==1:
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
 
     #Index pairs of bins
     npairs      = (nbins*(nbins+1))//2
@@ -402,7 +436,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
     for ipair in range(npairs):
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
-        integrand          = dV * windows[ibin,:]* windows[jbin,:]
+        integrand          = dX_dz * windows[ibin,:]* windows[jbin,:]
         integral           = integrate.simps(integrand,zz)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
@@ -438,7 +472,7 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,precision=10,tol=1e-
             jbin = pairs[1,ipair]
             for ik in range(nk):
                 kr             = kk[ik]*comov_dist
-                integrand      = dV * windows[ibin,:] * windows[jbin,:] * growth * np.sin(kr)/kr
+                integrand      = dX_dz * windows[ibin,:] * windows[jbin,:] * growth * np.sin(kr)/kr
                 Uarr[ipair,ik] = integrate.simps(integrand,zz)
             
     # Compute Sijkl finally
@@ -502,14 +536,26 @@ def find_lmax(ell,cl_mask,var_tol,debug=False):
 # Sij_psky
 # Routine to compute the Sij matrix in partial sky
 #
-# Inputs : list of redshift bins, window functions, cl of the mask (fits file), path to the mask of the survey (fits file, readable by healpix), cosmological parameters
+# Inputs :
+# - redshifts and window functions
+#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# - cosmology or cosmological parameters
+#   Format : dictionnary with format of CLASS's wrapper classy
+# - mask or its angular power spectrum
+#   Format : fits file
 # Output : Sij matrix (shape: nbins x nbins)
+#
+# Options :
+# - convention : convention used in the definition of the window functions/kernel.
+#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+#   Details in Sij above
+# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
 #
 ## Equation used : Sij = sum_ell (2ell+1) C(ell,i,j) C(ell,mask) /(4pi*fsky)^2
 ## where C(ell,i,j) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
-## with Inorm(i) = int dV window(i,z)^2
-## and U(i;kk,ell) = int dV window(i,z)^2 growth(z) j_ell(kk*r)
-def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=12,cosmo_Class=None,var_tol=0.05,verbose=False,debug=False):
+## with Inorm(i) = int dX window(i,z)^2
+## and U(i;kk,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
+def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=12,var_tol=0.05,verbose=False,debug=False):
     windows[windows<5e-100] = 0.
     import healpy as hp
     from scipy.special import spherical_jn as jn
@@ -577,15 +623,22 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+
+    if convention==0:
+        dX_dz = dV_dz
+    elif convention==1:
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
     
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dV * windows[i1,:]**2 
+        integrand = dX_dz * windows[i1,:]**2 
         Inorm[i1] = integrate.simps(integrand,zz)
 
 
@@ -607,7 +660,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
         for ibin in range(nbins):
             for ik in range(nk):
                 kr            = kk[ik]*comov_dist
-                integrand     = dV * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+                integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
                 Uarr[ibin,ik] = integrate.simps(integrand,zz)
         Cl_zero     = np.zeros((nbins,nbins))
         #For i<=j
@@ -624,7 +677,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
                 Cl_zero[ibin,jbin] = Cl_zero[min(ibin,jbin),max(ibin,jbin)]
 
     
-    # Compute U(i;k,ell) = int dV window(i,z)^2 growth(z) j_ell(kk*r)
+    # Compute U(i;k,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -645,7 +698,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
         for ll in ell:
             bessel_jl = jn(ll,kr)
             for ibin in range(nbins):
-                integrand        = dV * windows[ibin,:]**2 * growth * bessel_jl
+                integrand        = dX_dz * windows[ibin,:]**2 * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
@@ -689,19 +742,28 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
 # Sijkl_psky
 # Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
 #
-# Inputs : window functions, cosmological parameters, same format as Sij()
+#
+# Inputs :
+# - redshifts and window functions
+#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+# - cosmology or cosmological parameters
+#   Format : dictionnary with format of CLASS's wrapper classy
+# - mask or its angular power spectrum
+#   Format : fits file
 # Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
 #
-## Equation used :  Sijkl = 1/(2*pi^2) int kk^2 dkk P(kk) U(i,j;k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dV window(i,z)^2 and U(i,k) = int dV window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = \sum_\ell \ell (\ell + 1) C(ell,i,j)
-## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-
+# Options :
+# - convention : convention used in the definition of the window functions/kernel.
+#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+#   Details in Sij above
+# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+# - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
+#
 ## Equation used : Sijkl = sum_ell (2ell+1) C(ell;i,j;k,l) C(ell,mask) /(4pi*fsky)^2
 ## where C(ell;i,j;k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
-## with Inorm(i,j) = int dV window(i,z) window(j,z)
-## and U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)
-def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,precision=10,var_tol=0.05,tol=1e-3,cosmo_Class=None,verbose=False,debug=False):
+## with Inorm(i,j) = int dX window(i,z) window(j,z)
+## and U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)
+def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,var_tol=0.05,tol=1e-3,verbose=False,debug=False):
 
     import healpy as hp
     from scipy.special import spherical_jn as jn
@@ -769,10 +831,17 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
     zofr        = cosmo.z_of_r(zz)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV          = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+
+    if convention==0:
+        dX_dz = dV_dz
+    elif convention==1:
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
 
     #Index pairs of bins
     npairs      = (nbins*(nbins+1))//2
@@ -784,13 +853,13 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
             pairs[1,count] = jbin
             count +=1
         
-    # Compute normalisations Inorm(i,j) = int dV window(i,z) window(j,z)
+    # Compute normalisations Inorm(i,j) = int dX window(i,z) window(j,z)
     Inorm       = np.zeros(npairs)
     Inorm2D     = np.zeros((nbins,nbins))
     for ipair in range(npairs):
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
-        integrand          = dV * windows[ibin,:]* windows[jbin,:]
+        integrand          = dX_dz * windows[ibin,:]* windows[jbin,:]
         integral           = integrate.simps(integrand,zz)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
@@ -806,7 +875,7 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
         if ratio<tol:
             flag[ipair]=1
     
-    # Compute U(i,j;kk,ell) = int dV window(i,z) window(j,z) growth(z) j_ell(kk*r)  
+    # Compute U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)  
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -828,7 +897,7 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
                 if flag[ipair]==0:
                     ibin = pairs[0,ipair]
                     jbin = pairs[1,ipair]
-                    integrand        = dV * windows[ibin,:] * windows[jbin,:] * growth * bessel_jl
+                    integrand        = dX_dz * windows[ibin,:] * windows[jbin,:] * growth * bessel_jl
                     Uarr[ipair,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
