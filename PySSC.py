@@ -13,8 +13,8 @@ from classy import Class
 
 # Default values for redshift bin, cosmo parameters etc
 default_zstakes = [0.9,1]
-default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
-
+#default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
+default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 2,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
 ##################################################
 ##########      FULL SKY ROUTINES       ##########
 ##################################################
@@ -25,7 +25,7 @@ default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'si
 # Inputs : stakes of the redshift bins (array), cosmological parameters (dictionnary as in CLASS's wrapper classy)
 # Output : Sij matrix (size: nbins x nbins)
 def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Class=None):
-
+    
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
         cosmo = Class()
@@ -149,8 +149,8 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Cl
 ## 1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
 ## The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe)
 ## which is a constant so does not matter in the ratio here.
-def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10):
-
+def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=1,precision=12):
+    
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
     win = np.asarray(windows)
@@ -173,7 +173,7 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
         cosmo.compute()
     else:
         cosmo = cosmo_Class
-
+    
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
@@ -184,7 +184,7 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
-
+    
     if convention==0:
         dX_dz = dV_dz
     elif convention==1:
@@ -201,9 +201,9 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
     # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
+    kmin        = 1e-4#min(keq,1./comov_dist.max())/klogwidth
+    kmax        = 1#max(keq,1./comov_dist.min())*klogwidth
+    nk          = 1000#2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
     #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
     logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
     logk        = np.linspace(logkmin,logkmax,num=nk)
@@ -227,7 +227,7 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
             U2 = Uarr[jbin,:]/Inorm[jbin]
             integrand = kk**2 * Pk * U1 * U2
             #Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand,kk)     #linear integration
-            Cl_zero[ibin,jbin] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+            Cl_zero[ibin,jbin] = (2/pi) * integrate.simps(integrand*kk,logk) #log integration
     #Fill by symmetry   
     for ibin in range(nbins):
         for jbin in range(nbins):
