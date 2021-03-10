@@ -15,8 +15,8 @@ import subprocess as spr
 ##################################################
 
 # Default values for redshift bin, cosmo parameters etc
-default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
-
+#default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
+default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 1,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
 # Routine to compute the Sij matrix with general window functions given as tables using AngPow for redshift integration
 # Note that the user may type a "make" in PySSC/AngPow_files/AngPow
 # So far only in the TopHat case
@@ -115,27 +115,26 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     comov_dist  = zofr[0] 
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
-    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
-    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
-    logk        = np.linspace(logkmin,logkmax,num=nk)
-    kk          = np.exp(logk)                                     #logarithmic grid on k
-    Pk          = np.zeros(nk)
-    for ik in range(nk):
-        Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
+    #kmin        = 1e-4#min(keq,1./comov_dist.max())/klogwidth
+    #kmax        = 5#max(keq,1./comov_dist.min())*klogwidth
+    #nk          = 1000#2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
     
-    Omega_b     = cosmo.Omega_b() #default_cosmo_params["omega_b"]  /h**2
-    Omega_cdm   = cosmo.Omega_cdm() #default_cosmo_params["omega_cdm"]/h**2
-    Omega_m     = Omega_b + Omega_cdm
+    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
+    #logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
+    #logk        = np.linspace(logkmin,logkmax,num=nk)
+    #kk          = np.exp(logk)                                     #logarithmic grid on k
+    #Pk          = np.zeros(nk)
+    #for ik in range(nk):
+    #    Pk[ik]  = cosmo.pk(kk[ik],0.)                              #kk in Mpc-1, Pk in Mpc^3
+    kk = np.geomspace(1e-4,1,1000)
+    Pk = np.zeros(len(kk))
+    for ik in range(len(kk)): Pk[ik]  = cosmo.pk(kk[ik]*h,0.)
     path        = './AngPow_files/' #loc of all AngPow stuffs
     name        = 'SSC' #the name of the new AngPow .ini file
-    np.savetxt('%s%s_Pk.txt'%(path,name),np.transpose(np.vstack((kk/h,Pk*(h**3))))) #AngPow needs Pk(z=0)
-    cl_kmax     = np.amax(kk)/h #Cl is a mixing of modes : cl_kmax is the maximum k of the integral made by AngPow !!!!!!!!!!!!!!!!!!!!!!!!!!!!! *h ou /h?
+    np.savetxt('%s%s_Pk.txt'%(path,name),np.transpose(np.vstack((kk,Pk*h**3)))) #AngPow needs Pk(z=0)
     
     # define all AngPow parameters
-    ini = {'Lmin' : 0,'Lmax' : lmax ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : cl_kmax,'radial_quad'  : 'trapezes','radial_order' : 50,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': Omega_m ,'omega_baryon': Omega_b,'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : np.amin(kk/h),'pw_kmax' : np.amax(kk/h),}
+    ini = {'Lmin' : 0,'Lmax' : lmax ,'linearStep' : 40, 'logStep' : 1.15,'algo_type' : 1,'limber_lthr1' : -1,'limber_lthr2' : -1,'wtype':'UserFile,UserFile','mean' : '-1.,-1.','width': '-1.,-1.','w_dir' : './AngPow_files' , 'w_files' : '%s_win1.txt , %s_win2.txt' %(name,name),'cross_depth' : -1,'n_sigma_cut' : '-1.','cl_kmax' : np.amax(kk)*h,'radial_quad'  : 'gausskronrod','radial_order' : 400,'chebyshev_order' : 9,'n_bessel_roots_per_interval' : 100,'h': h,'omega_matter': cosmo.Omega_m() ,'omega_baryon': cosmo.Omega_b(),'hasX' : 0,'omega_X' :'','wX':'','waX':'','cosmo_zmin' : 0.,'cosmo_zmax' : 10.,'cosmo_npts' : 1000,'cosmo_precision' : 0.001,'Lmax_for_xmin' : 2000,'jl_xmin_cut'   : 5e-10,'output_dir' : path,'common_file_tag' : 'angpow_bench_%s_'%name,'quadrature_rule_ios_dir' : '%sAngPow/data/'%(path),'power_spectrum_input_dir': path,'power_spectrum_input_file' : '%s_Pk.txt' %name,'pw_kmin' : kk[0],'pw_kmax' : kk[-1]}
     
     # write all AngPow parameters in a .ini file
     out = '%sangpow_bench_%s.ini'%(path,name)
@@ -153,8 +152,9 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
                 w_1 = (win[bins_1,:])[win[bins_1,:]!=0]
                 z_2 = zz[win[bins_2,:]!=0]
                 w_2 = (win[bins_2,:])[win[bins_2,:]!=0]
-                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((z_1,(w_1)**2))))
-                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((z_2,(w_2)**2))))
+                comov_dist_ = comov_dist[win[bins_1,:]!=0]
+                np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((z_1,w_1))))
+                np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((z_2,w_2))))
                 #np.savetxt('%s%s_win1.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_1,:]))**2))))
                 #np.savetxt('%s%s_win2.txt'%(path,name),np.transpose(np.vstack((zz,((win[bins_2,:]))**2))))
                 # running AngPow
