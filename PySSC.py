@@ -149,7 +149,7 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Cl
 ## 1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
 ## The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe)
 ## which is a constant so does not matter in the ratio here.
-def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=1,precision=12):
+def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=1,precision=10):
     
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -201,9 +201,9 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
     # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = 1e-4#min(keq,1./comov_dist.max())/klogwidth
-    kmax        = 1#max(keq,1./comov_dist.min())*klogwidth
-    nk          = 1000#2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
+    kmin        = min(keq,1./comov_dist.max())/klogwidth #1e-4
+    kmax        = max(keq,1./comov_dist.min())*klogwidth #1
+    nk          = 2**precision #1000                                  #10 seems to be enough. Increase to test precision, reduce to speed up.
     #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
     logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
     logk        = np.linspace(logkmin,logkmax,num=nk)
@@ -574,8 +574,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     
     assert zz.min()>0, 'z_arr must have values > 0'
 
-    if (mask is None) and (clmask is None):
-        raise Exception('Need either mask or Cls of mask')
+    assert (mask is not None) or (clmask is not None), 'Need either mask or Cls of mask'
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -682,8 +681,8 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
     kmax        = max(keq,1./comov_dist.min())*klogwidth
-    print(kmax)
-    kmax = 0.005
+    # print(kmax)
+    # kmax = 0.005
     nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
     #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
     logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
