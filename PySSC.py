@@ -737,6 +737,118 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     
     return Sij
 
+def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,verbose=False):
+    """
+    Computing Sij according to flat-sky approximation
+    See Eq. 16 of arXiv:1612.05958
+
+    Parameters:
+       - z_arr : redshift array (must be >0)
+       - windows: values of window function on z_arr for each bin. Dimensions (nbins,len(z_arr))
+       - bin_centres : central values of redshift bins. Dimensions: (nbins)
+       - theta (optional) : area of the survey mask in deg
+       - mask (optional) : mask of the survey, given as a fits file readable by healpix
+       Note: Either mask or theta must be fed.
+       - cosmo_params : Class dictionary of cosmological parameters
+    """
+
+    import healpy as hp
+    from scipy.special import spherical_jn as jn
+    from astropy.io import fits
+    from scipy.special import jv as Jn
+
+
+    # Assert everything as the good type and shape, and find number of redshifts, bins etc
+    zz  = np.asarray(z_arr)
+    win = np.asarray(windows)
+    windows[windows<5e-100] = 0.
+    zstakes = np.asarray(bin_centres)
+
+    assert zz.ndim==1, 'z_arr must be a 1-dimensional array'
+    assert win.ndim==2, 'windows must be a 2-dimensional array'
+    
+    nz    = len(zz)
+    nbins = win.shape[0]
+    assert win.shape[1]==nz, 'windows must have shape (nbins,nz)'
+    
+    assert zz.min()>0, 'z_arr must have values > 0'
+
+    if theta is not None: # User gives survey area in deg
+        theta = 5.*np.pi/180. #converts in radians
+    elif mask is not None: # User gives mask as a map
+        if verbose:
+            print('Using mask map, given as a fits file')
+        map_mask = hp.read_map(str(mask),verbose=False)
+        nside    = hp.pixelfunc.get_nside(map_mask)
+        lmaxofcl = 2*nside
+        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        ell      = np.arange(lmaxofcl+1)
+        theta = np.sqrt(cl_mask[0]/np.pi)
+    else:
+        raise ValueError('Need either theta or mask')
+    # If the cosmology is not provided (in the same form as CLASS), run CLASS
+    if cosmo_Class is None:
+        cosmo = Class()
+        dico_for_CLASS = cosmo_params
+        dico_for_CLASS['output'] = 'mPk'
+        cosmo.set(dico_for_CLASS)
+        cosmo.compute()
+    else:
+        cosmo = cosmo_Class
+
+    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
+    
+    # Define arrays of r(z), k...
+    zofr        = cosmo.z_of_r(zz)
+    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
+    
+    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
+    kmin        = min(keq,1./comov_dist.max())/klogwidth
+    kmax        = max(keq,1./comov_dist.min())*klogwidth
+
+    # kperp array
+    kmin_perp = kmin
+    kmax_perp = kmax
+    nk_perp   = 50
+    lnkperp_arr = np.linspace(np.log10(kmin_perp),np.log10(kmax_perp),nk_perp)
+    kperp_arr = 10**(lnkperp_arr)
+    # kpar array
+    kmin_par = kmin
+    kmax_par = kmax
+    nk_par   = 50
+    lnkpar_arr = np.linspace(np.log10(kmin_par),np.log10(kmax_par),nk_par)
+    kpar_arr = 10**(lnkpar_arr)
+    # k2 = kperp2 + kpar2
+    k_arr = np.sqrt(kperp_arr[:,None]**2+kpar_arr[None,:]**2)
+
+
+    if verbose: print('Computing flat-sky approximation')
+    Sij = np.zeros((nbins,nbins))
+    for ibin in range(nbins):
+        z1 = zstakes[ibin]
+        r1 = cosmo.z_of_r([z1])[0][0]
+        dr1 = comov_dist[win[ibin,:]!=0].max()-comov_dist[win[ibin,:]!=0].min() #width of function function
+
+        for jbin in range(nbins):
+            z2 = zstakes[jbin]
+            r2 = cosmo.z_of_r([z2])[0][0]
+            dr2 = comov_dist[win[jbin,:]!=0].max()-comov_dist[win[jbin,:]!=0].min() #width of window function
+
+            z12 = np.mean([zstakes[ibin],zstakes[jbin]])
+
+            
+            Pk = np.array([cosmo.pk(k_arr[i,j],0.) for i in range(nk_perp) for j in range(nk_par)])
+            Pk = Pk.reshape(k_arr.shape)
+
+            integ_kperp = kperp_arr * 4. * (Jn(1,kperp_arr*theta*r1)/kperp_arr/theta/r1) * ( Jn(1,kperp_arr*theta*r2)/kperp_arr/theta/r2 )
+            integ_kpar = jn(0,kpar_arr*dr1/2) * jn(0,kpar_arr*dr2/2)
+            dSij = integ_kperp[:,None] * integ_kpar[None,:] * Pk * np.cos(kpar_arr[None,:]*abs(r1-r2)) 
+
+            Sij[ibin,jbin] = integrate.simps( integrate.simps(dSij,kpar_arr), kperp_arr)/ 2. / np.pi**2
+
+    return Sij
+
     
 # Sijkl_psky
 # Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
