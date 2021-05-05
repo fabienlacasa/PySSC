@@ -737,7 +737,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     
     return Sij
 
-def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,verbose=False):
+def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params,cosmo_Class=None,verbose=False):
     """
     Computing Sij according to flat-sky approximation
     See Eq. 16 of arXiv:1612.05958
@@ -746,8 +746,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=
        - z_arr : redshift array (must be >0)
        - windows: values of window function on z_arr for each bin. Dimensions (nbins,len(z_arr))
        - bin_centres : central values of redshift bins. Dimensions: (nbins)
-       - theta (optional) : area of the survey mask in deg
-       - mask (optional) : mask of the survey, given as a fits file readable by healpix
+       - theta : area of the survey mask in deg
        Note: Either mask or theta must be fed.
        - cosmo_params : Class dictionary of cosmological parameters
     """
@@ -773,19 +772,8 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=
     
     assert zz.min()>0, 'z_arr must have values > 0'
 
-    if theta is not None: # User gives survey area in deg
-        theta = 5.*np.pi/180. #converts in radians
-    elif mask is not None: # User gives mask as a map
-        if verbose:
-            print('Using mask map, given as a fits file')
-        map_mask = hp.read_map(str(mask),verbose=False)
-        nside    = hp.pixelfunc.get_nside(map_mask)
-        lmaxofcl = 2*nside
-        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
-        ell      = np.arange(lmaxofcl+1)
-        theta = np.sqrt(cl_mask[0]/np.pi)
-    else:
-        raise ValueError('Need either theta or mask')
+    theta = theta*np.pi/180. #converts in radians
+
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
         cosmo = Class()
@@ -821,7 +809,9 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=
     kpar_arr = 10**(lnkpar_arr)
     # k2 = kperp2 + kpar2
     k_arr = np.sqrt(kperp_arr[:,None]**2+kpar_arr[None,:]**2)
-
+    # growth      = np.zeros(nz)                              #Growth factor
+    # for iz in range(nbins):
+    #     growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
 
     if verbose: print('Computing flat-sky approximation')
     Sij = np.zeros((nbins,nbins))
@@ -837,13 +827,13 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta=None,mask=None, cosmo_params=
 
             z12 = np.mean([zstakes[ibin],zstakes[jbin]])
 
-            
+            growth = cosmo.scale_independent_growth_factor(z12)
             Pk = np.array([cosmo.pk(k_arr[i,j],0.) for i in range(nk_perp) for j in range(nk_par)])
             Pk = Pk.reshape(k_arr.shape)
 
             integ_kperp = kperp_arr * 4. * (Jn(1,kperp_arr*theta*r1)/kperp_arr/theta/r1) * ( Jn(1,kperp_arr*theta*r2)/kperp_arr/theta/r2 )
             integ_kpar = jn(0,kpar_arr*dr1/2) * jn(0,kpar_arr*dr2/2)
-            dSij = integ_kperp[:,None] * integ_kpar[None,:] * Pk * np.cos(kpar_arr[None,:]*abs(r1-r2)) 
+            dSij = integ_kperp[:,None] * integ_kpar[None,:] * growth * Pk * np.cos(kpar_arr[None,:]*abs(r1-r2)) 
 
             Sij[ibin,jbin] = integrate.simps( integrate.simps(dSij,kpar_arr), kperp_arr)/ 2. / np.pi**2
 
