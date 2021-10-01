@@ -1,10 +1,12 @@
 #!/usr/bin/python
 # Filename: PySSC.py
 
-# Modules necessary for computation
+####################################################################################################
+#################################     IMPORT NECESSARY MODULES    #################################
+####################################################################################################
+
 import math ; pi=math.pi
 import numpy as np
-import sys
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
 from classy import Class
@@ -15,16 +17,20 @@ from classy import Class
 default_zstakes = [0.9,1]
 default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
 #default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 2,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
-##################################################
-##########      FULL SKY ROUTINES       ##########
-##################################################
 
-# Routine to compute the Sij matrix with top-hat disjoint redshift window functions
-# example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
-#
-# Inputs : stakes of the redshift bins (array), cosmological parameters (dictionnary as in CLASS's wrapper classy)
-# Output : Sij matrix (size: nbins x nbins)
+####################################################################################################
+#################################        FULL SKY ROUTINES         #################################
+####################################################################################################
+
+##### turboSij #####
 def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Class=None):
+    """
+    Routine to compute the Sij matrix with top-hat disjoint redshift window functions
+    example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
+
+    Inputs : stakes of the redshift bins (array), cosmological parameters (dictionnary as in CLASS's wrapper classy)
+    Output : Sij matrix (size: nbins x nbins)
+    """
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -122,34 +128,36 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Cl
 
     return Sij
 
-
-# Routine to compute the Sij matrix with general window functions given as tables
-# example : weak lensing, or galaxy clustering with redshift errors
-#
-# Inputs :
-# - redshifts and window functions
-#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# - cosmology or cosmological parameters
-#   Format : dictionnary with format of CLASS's wrapper classy
-# Output : Sij matrix (shape: nbins x nbins)
-#
-# Options :
-# - convention : convention used in the definition of the window functions/kernel.
-#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-#   Details below
-# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
-#
-## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)^S/4pi
-## with C(ell=0,i,j)^S = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-##
-## dX depends on the convention used to define the window functions : Cl(i,j) = int dX window(i,z) window(j,z) P(k=(ell+1/2)/r,z)
-## 0 : dX = dV = dV/dz dz = r^2(z) dr/dz dz. Used in Lacasa & Grain 2019.
-## 1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
-## The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe)
-## which is a constant so does not matter in the ratio here.
+##### Sij #####
 def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=1,precision=10):
+    """
+    Routine to compute the Sij matrix with general window functions given as tables
+    example : weak lensing, or galaxy clustering with redshift errors
+
+    Inputs :
+    - redshifts and window functions
+      Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+    - cosmology or cosmological parameters
+      Format : dictionnary with format of CLASS's wrapper classy
+    Output : Sij matrix (shape: nbins x nbins)
+
+    Options :
+    - convention : convention used in the definition of the window functions/kernel.
+      0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+      Details below
+    - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+
+    Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+    with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
+    This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)^S/4pi
+    with C(ell=0,i,j)^S = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+
+    dX depends on the convention used to define the window functions : Cl(i,j) = int dX window(i,z) window(j,z) P(k=(ell+1/2)/r,z)
+    0 : dX = dV = dV/dz dz = r^2(z) dr/dz dz. Used in Lacasa & Grain 2019.
+    1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
+    The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe)
+    which is a constant so does not matter in the ratio here.
+    """
     
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -236,25 +244,26 @@ def Sij(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,conve
     
     return Sij
 
-# Alternative routine to compute the Sij matrix with general window functions given as tables
-#
-# Inputs :
-# - redshifts and window functions
-#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# - cosmology or cosmological parameters
-#   Format : dictionnary with format of CLASS's wrapper classy
-# Output : Sij matrix (shape: nbins x nbins)
-#
-# Options :
-# - convention : convention used in the definition of the window functions/kernel.
-#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-#   Details in Sij above
-#
-## Equation used : Sij = int dX1 dX2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
-## with Inorm(i) = int dX window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
-## which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
-## which can be computed with an FFT
+##### Sij_alt #####
 def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0):
+    """
+    Alternative routine to compute the Sij matrix with general window functions given as tables
+    Inputs :
+    - redshifts and window functions
+      Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+    - cosmology or cosmological parameters
+      Format : dictionnary with format of CLASS's wrapper classy
+    Output : Sij matrix (shape: nbins x nbins)
+    Options :
+    - convention : convention used in the definition of the window functions/kernel.
+      0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+      Details in Sij above
+
+    Equation used : Sij = int dX1 dX2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
+    with Inorm(i) = int dX window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
+    which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
+    which can be computed with an FFT
+    """
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -357,27 +366,29 @@ def Sij_alt(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,c
     
     return Sij
 
-# Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
-#
-# Inputs :
-# - redshifts and window functions
-#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# - cosmology or cosmological parameters
-#   Format : dictionnary with format of CLASS's wrapper classy
-# Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
-#
-# Options :
-# - convention : convention used in the definition of the window functions/kernel.
-#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-#   Details in Sij above
-# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
-# - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
-#
-## Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-## with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
-## This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
-## with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+##### Sijkl #####
 def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,tol=1e-3):
+    """
+    Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
+
+    Inputs :
+    - redshifts and window functions
+      Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+    - cosmology or cosmological parameters
+      Format : dictionnary with format of CLASS's wrapper classy
+    Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
+    Options :
+    - convention : convention used in the definition of the window functions/kernel.
+      0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+      Details in Sij above
+    - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+    - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
+
+    Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+    with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
+    This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)/4pi
+    with C(ell=0,i,j) = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+    """
 
     # Assert everything as the good type and shape, and find number of redshifts, bins etc
     zz  = np.asarray(z_arr)
@@ -505,17 +516,20 @@ def Sijkl(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,con
     
     return Sijkl
 
-##################################################
-##########     PARTIAL SKY ROUTINES     ##########
-##################################################
+####################################################################################################
+#################################       PARTIAL SKY ROUTINES       #################################
+####################################################################################################
 
-# find_lmax
-# Routine to search the best lmax for all later sums on multipoles
-# Inputs :
-#  - ell : full vectors of multipoles. As large as possible
-# Method: smallest lmax so that we have convergence of the variance
-# var = sum_ell (2*ell+1)/4pi * Clmask
+##### find_lmax #####
 def find_lmax(ell,cl_mask,var_tol,debug=False):
+    """
+    Routine to search the best lmax for all later sums on multipoles
+    Inputs :
+      - ell : full vectors of multipoles. As large as possible
+      - cl_mask : power spectrum of the mask at the supplied multipoles
+    Method: smallest lmax so that we have convergence of the variance var = sum_ell (2*ell+1)/4pi * Clmask
+    """
+
     assert ell.ndim==1, 'ell must be a 1-dimensional array'
     assert cl_mask.ndim==1, 'cl_mask must be a 1-dimensional array'
     assert len(ell)==len(cl_mask), 'ell and cl_mask must have the same size'
@@ -533,29 +547,32 @@ def find_lmax(ell,cl_mask,var_tol,debug=False):
     lmax = min(lmax,lmaxofcl) #make sure we didnt overshoot at the last iteration
     return lmax
 
-# Sij_psky
-# Routine to compute the Sij matrix in partial sky
-#
-# Inputs :
-# - redshifts and window functions
-#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# - cosmology or cosmological parameters
-#   Format : dictionnary with format of CLASS's wrapper classy
-# - mask or its angular power spectrum
-#   Format : fits file
-# Output : Sij matrix (shape: nbins x nbins)
-#
-# Options :
-# - convention : convention used in the definition of the window functions/kernel.
-#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-#   Details in Sij above
-# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
-#
-## Equation used : Sij = sum_ell (2ell+1) C(ell,i,j) C(ell,mask) /(4pi*fsky)^2
-## where C(ell,i,j) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
-## with Inorm(i) = int dX window(i,z)^2
-## and U(i;kk,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
+##### Sij_psky #####
 def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=12,var_tol=0.05,verbose=False,debug=False):
+    """
+    Sij_psky
+    Routine to compute the Sij matrix in partial sky
+
+    Inputs :
+    - redshifts and window functions
+      Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+    - cosmology or cosmological parameters
+      Format : dictionnary with format of CLASS's wrapper classy
+    - mask or its angular power spectrum
+      Format : fits file
+    Output : Sij matrix (shape: nbins x nbins)
+    Options :
+    - convention : convention used in the definition of the window functions/kernel.
+      0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+      Details in Sij above
+    - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+
+    Equation used : Sij = sum_ell (2ell+1) C(ell,i,j) C(ell,mask) /(4pi*fsky)^2
+    where C(ell,i,j) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
+    with Inorm(i) = int dX window(i,z)^2
+    and U(i;kk,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
+    """
+
     windows[windows<5e-100] = 0.
     import healpy as hp
     from scipy.special import spherical_jn as jn
@@ -737,6 +754,7 @@ def Sij_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_p
     
     return Sij
 
+##### Sij_flatsky #####
 def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params,cosmo_Class=None,verbose=False):
     """
     Computing Sij according to flat-sky approximation
@@ -840,31 +858,31 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
     return Sij
 
     
-# Sijkl_psky
-# Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
-#
-#
-# Inputs :
-# - redshifts and window functions
-#   Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
-# - cosmology or cosmological parameters
-#   Format : dictionnary with format of CLASS's wrapper classy
-# - mask or its angular power spectrum
-#   Format : fits file
-# Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
-#
-# Options :
-# - convention : convention used in the definition of the window functions/kernel.
-#   0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-#   Details in Sij above
-# - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
-# - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
-#
-## Equation used : Sijkl = sum_ell (2ell+1) C(ell;i,j;k,l) C(ell,mask) /(4pi*fsky)^2
-## where C(ell;i,j;k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
-## with Inorm(i,j) = int dX window(i,z) window(j,z)
-## and U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)
+##### Sijkl_psky #####
 def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,var_tol=0.05,tol=1e-3,verbose=False,debug=False):
+    """
+    Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
+
+    Inputs :
+    - redshifts and window functions
+      Format : one table of redshifts with size nz, one 2D table for the collection of window functions with shape (nbins,nz)
+    - cosmology or cosmological parameters
+      Format : dictionnary with format of CLASS's wrapper classy
+    - mask or its angular power spectrum
+      Format : fits file
+    Output : Sijkl matrix (shape: nbins x nbins x nbins x nbins)
+    Options :
+    - convention : convention used in the definition of the window functions/kernel.
+      0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+      Details in Sij above
+    - precision : drives the number of Fourier wavenumbers in internal integrals. nk=2^precision
+    - tol : redshift bin pairs with too small overlap are flagged as unreliable. tol is the threshold of overlap.
+
+     Equation used : Sijkl = sum_ell (2ell+1) C(ell;i,j;k,l) C(ell,mask) /(4pi*fsky)^2
+     where C(ell;i,j;k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
+     with Inorm(i,j) = int dX window(i,z) window(j,z)
+     and U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)
+    """
 
     import healpy as hp
     from scipy.special import spherical_jn as jn
