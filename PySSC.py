@@ -22,26 +22,34 @@ default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'si
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=1, precision=10):
+def Sij(z_arr, windows, sky='full', clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     test_zw(z_arr,windows)
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
+        test_mask(mask, clmask)
+        Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
     else:
-        raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
+        raise Exception('Invalid string given for sky geometry parameter. Main possibilities : full sky or partial sky (or abbreviations, see code for details).')
     return Sij   
 
 def Sij_alt(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
     test_zw(z_arr,windows)
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
+        raise Exception('No current implementation of Sij_alt for partial sky. Use Sij instead.')
     else:
-        raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
+        raise Exception('Invalid string given for sky geometry parameter. Must be full sky (or abbreviations, see code for details).')
     return Sij
 
-def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
+def Sijkl(z_arr, windows, sky='full', clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3, var_tol=0.05, verbose=False, debug=False):
     test_zw(z_arr,windows)
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
-        Sijkl=Sijkl_fullsky(z_arr, windows, cosmo_params=cosmo_params,cosmo_Class=cosmo_Class,convention=convention,precision=precision,tol=tol)
+        Sijkl=Sijkl_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
+    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
+        test_mask(mask, clmask)
+        Sijkl=Sijkl_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
     else:
         raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
     return Sijkl
@@ -51,7 +59,7 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 ####################################################################################################
 
 ##### Sij_fullsky #####
-def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=1,precision=10):
+def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
     """
     Routine to compute the Sij matrix with general window functions given as tables
     example : weak lensing, or galaxy clustering with redshift errors
@@ -160,7 +168,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=No
     return Sij
 
 ##### Sij_alt_fullsky #####
-def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0):
+def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
     """
     Alternative routine to compute the Sij matrix with general window functions given as tables
     Inputs :
@@ -275,7 +283,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Clas
     return Sij
 
 ##### Sijkl_fullsky #####
-def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,tol=1e-3):
+def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
     """
     Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
 
@@ -422,7 +430,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params,cosmo_Class=
 ####################################################################################################
 
 ##### Sij_psky #####
-def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=12, var_tol=0.05, verbose=False, debug=False):
+def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     """
     Sij_psky
     Routine to compute the Sij matrix in partial sky
@@ -457,8 +465,6 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     win = np.asarray(windows)    
     nz    = len(zz)
     nbins = win.shape[0]
-
-    assert (mask is not None) or (clmask is not None), 'Need either mask or Cls of mask'
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -622,7 +628,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     return Sij
 
 ##### Sij_flatsky #####
-def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params,cosmo_Class=None,verbose=False):
+def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params, cosmo_Class=None, verbose=False):
     """
     Computing Sij according to flat-sky approximation
     See Eq. 16 of arXiv:1612.05958
@@ -714,7 +720,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
 
     
 ##### Sijkl_psky #####
-def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo_params,cosmo_Class=None,convention=0,precision=10,var_tol=0.05,tol=1e-3,verbose=False,debug=False):
+def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
     """
     Routine to compute the Sijkl matrix, i.e. the most general case with cross-spectra
 
@@ -748,9 +754,6 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
     win = np.asarray(windows)    
     nz    = len(zz)
     nbins = win.shape[0]
-    
-    if (mask is None) and (clmask is None):
-        raise Exception('Need either mask or Cls of mask')
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -916,7 +919,7 @@ def Sijkl_psky(z_arr, windows, clmask=None,mask=None, cosmo_params=default_cosmo
 ####################################################################################################
 
 ##### test_zw #####
-def test_zw(z_arr,windows):
+def test_zw(z_arr, windows):
     """
     Assert redshift and windows arrays have the good type and shape
     """
@@ -929,11 +932,11 @@ def test_zw(z_arr,windows):
     assert zz.min()>0, 'z_arr must have values > 0'
 
 ##### test_mask #####
-def test_mask(mask,clmask):
-    assert (mask is not None) or (clmask is not None), 'Need either mask or Cls of mask'
+def test_mask(mask, clmask):
+    assert (mask is not None) or (clmask is not None), 'You need to provide either the mask or its angular power spectrum Cl.'
 
 ##### find_lmax #####
-def find_lmax(ell,cl_mask,var_tol,debug=False):
+def find_lmax(ell, cl_mask, var_tol, debug=False):
     """
     Routine to search the best lmax for all later sums on multipoles
     Inputs :
@@ -964,7 +967,7 @@ def find_lmax(ell,cl_mask,var_tol,debug=False):
 ####################################################################################################   
 
 ##### turboSij #####
-def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params,cosmo_Class=None):
+def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_Class=None):
     """
     Routine to compute the Sij matrix with top-hat disjoint redshift window functions
     example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
