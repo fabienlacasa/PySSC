@@ -475,7 +475,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     else : # User gives mask as a map
         if verbose:
             print('Using mask map, given as a fits file')
-        map_mask = hp.read_map(str(mask),verbose=False)
+        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
         cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
@@ -764,7 +764,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
     else : # User gives mask as a map
         if verbose:
             print('Using mask map, given as a fits file')
-        map_mask = hp.read_map(str(mask),verbose=False)
+        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
         cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
