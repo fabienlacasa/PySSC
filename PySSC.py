@@ -1161,6 +1161,99 @@ def Sij_AngPow_psky(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cos
     
     return Sij
 
+
+
+####################################################################################################
+#################################      UPDATED ANGPOW ROUTINES     #################################
+####################################################################################################
+
+def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,verbose=False,debug=False):
+
+    import time
+    import importlib
+    import os
+    import shutil
+    import healpy as hp
+    
+    
+    test_zw(z_arr, windows)
+    test_mask(mask, clmask)
+    
+    zz  = np.asarray(z_arr)
+    win = np.asarray(windows)  
+    
+    def find_lmax(ell,cl_mask,var_tol,debug=False):
+        assert ell.ndim==1, 'ell must be a 1-dimensional array'
+        assert cl_mask.ndim==1, 'cl_mask must be a 1-dimensional array'
+        assert len(ell)==len(cl_mask), 'ell and cl_mask must have the same size'
+        lmaxofcl      = ell.max()
+        summand       = (2*ell+1)/(4*np.pi)*cl_mask
+        var_target    = np.sum(summand)
+        #Initialisation
+        lmax          = 0
+        var_est       = np.sum(summand[:(lmax+1)])
+        while (abs(var_est - var_target)/var_target > var_tol and lmax < lmaxofcl):
+            lmax      = lmax +1
+            var_est   = np.sum(summand[:(lmax+1)])
+            if debug:
+                print('In lmax search',lmax,abs(var_est - var_target)/var_target,var_target,var_est)
+        lmax = min(lmax,lmaxofcl) #make sure we didnt overshoot at the last iteration
+        return lmax
+    
+    #compute the lmax for AngPow    
+    if mask is None: # User gives Cl(mask)
+        if verbose:
+            print('Using Cls given as a fits file')
+        cl_mask = hp.fitsfunc.read_cl(str(clmask))
+        ell = np.arange(len(cl_mask))
+        lmaxofcl = ell.max()
+    else : # User gives mask as a map
+        if verbose:
+            print('Using mask map, given as a fits file')
+        map_mask = hp.read_map(str(mask),verbose=False)
+        nside    = hp.pixelfunc.get_nside(map_mask)
+        lmaxofcl = 2*nside
+        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        ell      = np.arange(lmaxofcl+1)
+
+    # compute fsky from the mask
+    fsky = np.sqrt(cl_mask[0]/(4*np.pi))
+    if verbose:
+        print('f_sky = %.4f' %(fsky))
+
+    # Search of the best lmax for all later sums on ell
+    lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
+
+    if verbose:
+        print('lmax = %i' %(lmax))
+    
+    #load mpi configuration
+    ini = importlib.import_module('.PySSC_AngPow_MPI_setup',package='.AngPow')
+    AngPow_path = ini.AngPow_path
+    machinefile = ini.machinefile
+    Nn          = ini.Nn
+    
+    #create data to pass to MPI AngPow routine
+    rdm = np.random.random()
+    os.makedirs(AngPow_path + 'temporary_%s'%rdm)
+    np.savez(AngPow_path + 'temporary_%s/ini_files'%rdm, zz, win, lmax, fsky, cl_mask, AngPow_path)
+    np.save(AngPow_path + 'temporary_%s/ini_files.npy'%rdm, cosmo_params) 
+    
+    present_rep = os.getcwd()
+    #run MPI AngPow routine
+    os.system('mpiexec -f %s -n %i python %s/AngPow/PySSC_AP_MPI.py %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path))
+    time.sleep(10)
+    
+    #load Sij result
+    file = np.load(AngPow_path + 'temporary_%s/Sij.npz'%(rdm))
+    Sij = file['arr_0']
+    shutil.rmtree(AngPow_path + 'temporary_%s'%rdm, ignore_errors=True)
+    
+    return Sij
+
+
+
+
 ####################################################################################################
 #################################        AUXILIARY ROUTINES        #################################
 ####################################################################################################
