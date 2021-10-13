@@ -17,7 +17,7 @@ from classy import Class
 # Default values for redshift bin, cosmo parameters etc
 default_zstakes = [0.9,1]
 default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
-#default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 2,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
+default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 20,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
 
 ####################################################################################################
 #################################          MAIN WRAPPERS           #################################

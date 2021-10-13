@@ -1,0 +1,11 @@
+# Requirements :
+- Linux packages : g++ , libfftw3-dev , mpich
+- Python/pip packages : mpi4py
+
+# Installation
+$ cd AngPow/ ; git clone https://gitlab.in2p3.fr/campagne/AngPow.git ; cd AngPow ; make
+
+# Notes
+- To run the code locally, put 127.0.0.1:1 in the machinefile
+- You need to have a python executable called python, or symlink to your executable, or edit PySSC.py line 1244
+- You need to tell Class to go to high k : put 'P_k_max_h/Mpc':20
