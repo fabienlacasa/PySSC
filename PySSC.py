@@ -1007,23 +1007,31 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0
 
     import healpy as hp
     import os
+    import shutil
     
     test_zw(z_arr, windows)
+
+    if AngPow_path is not None:
+        assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
+    else :
+        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+    if AngPow_path is None:
+        AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
     
     # Define the angular power spectrum of a mask that is 1 over the full sky
     Cl_fullsky=np.zeros(10) ; Cl_fullsky[0]=4*pi
 
-    # Write the Cl to a temporary file
+    # Write the Cl in a temporary folder
     rdm = np.random.random()
-    tmp_file = './tmp_Cl_M_PySSC_%s'%rdm+'.fits'
+    os.makedirs(AngPow_path + 'temporary_%s'%rdm)
+    tmp_file = AngPow_path + 'temporary_%s/Cl_M_PySSC.fits'%(rdm)
     hp.fitsfunc.write_cl(tmp_file,Cl_fullsky)
 
     # Call Sij_AngPow with that Cl file
     Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,var_tol=var_tol,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
 
-    # Remove the temporary Cl file
-    if os.path.exists(tmp_file):
-        os.remove(tmp_file)
+    # Remove the temporary folder
+    shutil.rmtree(AngPow_path + 'temporary_%s'%rdm, ignore_errors=True)
 
     # Return the result
     return Sij
