@@ -105,7 +105,7 @@ for bins in range(len(todistributebin1)):
         np.savetxt(AngPow_path + 'temporary_%s/%s_win2_%s.txt'%(rdm_rep,name,rdm),np.transpose(np.vstack((z_2,w_2**2))))
         
         # running AngPow
-        os.system(AngPow_path + '/bin/angpow ' + out)
+        os.system(AngPow_path + 'bin/angpow ' + out)
         
         # Take the [0-1] column of the txt file (X-C_ell's)
         l_angpow,cl_angpow = np.loadtxt(AngPow_path + 'temporary_%s/angpow_bench_%s_%s'%(rdm_rep,name,rdm) + '_cl.txt',ndmin=2,unpack=True)
