@@ -9,43 +9,41 @@ import math ; pi=math.pi
 import numpy as np
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
-import os
+import copy
 from classy import Class
 
 ##################################################
 
 # Default values for redshift bin, cosmo parameters etc
 default_zstakes = [0.9,1]
-default_cosmo_params = {'omega_b':0.022,'omega_cdm':0.12,'H0':67.,'n_s':0.96,'sigma8':0.81}
-default_cosmo_params = {'z_max_pk': 0,'P_k_max_h/Mpc': 20,'H0':67.,'omega_b':0.022, 'omega_cdm':0.12 ,'n_s': 0.96, 'A_s' : 2.1265e-9,'output' : 'mPk'}
+default_cosmo_params = {'omega_b':0.022, 'omega_cdm':0.12, 'H0':67., 'n_s':0.96, 'A_s' : 2.035e-9, 'output' : 'mPk'}
+AngPow_cosmo_params = copy.deepcopy(default_cosmo_params) ; AngPow_cosmo_params['z_max_pk']=0 ; AngPow_cosmo_params['P_k_max_h/Mpc']=20
 
 ####################################################################################################
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+def Sij(z_arr, windows, sky='full', method='classic' , clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     
     test_zw(z_arr,windows)
     
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
-        Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+        if method.casefold() in ['classic','standard','default','std']:
+            Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+        elif method.casefold() in ['alternative','alt']:
+            Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+        else:
+            raise Exception('Invalid string given for method parameter. Main possibilities: classic or alternative (or variants, see code for details).')
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
         test_mask(mask, clmask)
-        Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
+        if method.casefold() in ['classic','standard','default']:
+            Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
+        elif method.casefold() in ['alt','alternative']:
+            raise Exception('No implementation of the alternative method for partial sky. Use classic instead.')
+        else:
+            raise Exception('Invalid string given for method parameter. Main possibilities: classic or alternative (or variants, see code for details).')
     else:
         raise Exception('Invalid string given for sky geometry parameter. Main possibilities : full sky or partial sky (or abbreviations, see code for details).')
-    return Sij   
-
-def Sij_alt(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
-    
-    test_zw(z_arr,windows)
-    
-    if sky.casefold() in ['full','fullsky','full sky','full-sky']:
-        Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
-    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
-        raise Exception('No implementation of Sij_alt for partial sky. Use Sij instead.')
-    else:
-        raise Exception('Invalid string given for sky geometry parameter. Must be full sky (or abbreviations, see code for details).')
     return Sij
 
 def Sijkl(z_arr, windows, sky='full', clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3, var_tol=0.05, verbose=False, debug=False):
@@ -925,7 +923,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 ####################################################################################################
 
 ##### Sij_AngPow #####
-def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
 
     import time
     import os
@@ -936,9 +934,13 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     test_mask(mask, clmask)
     
     zz  = np.asarray(z_arr)
-    win = np.asarray(windows) 
+    win = np.asarray(windows)
+
+    # If cosmo parameters are supplied, assert that a high kmax has been given
+    if cosmo_params!=AngPow_cosmo_params:
+        assert 'P_k_max_h/Mpc' in cosmo_params, 'If you supply your own cosmological parameters, you must give a high enough P_k_max_h/Mpc.'
     
-    #testing machinefile, Nn and AngPow_path
+    # Test machinefile, Nn and AngPow_path
     if machinefile is not None:
         assert Nn is not None, 'a machinefile has been provided, but not the number of node Nn.  Nn should not exceed the number of line in the machinefile'
         assert os.path.exists(machinefile) , 'the proposed machinefile has not been found, please update the path'
@@ -954,7 +956,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     if Np != 'default':
         assert int(Np) == Np , 'the number of process per node Np must be integer'
     
-    #compute the lmax for AngPow    
+    # Read or compute the mask angular power spectrum    
     if mask is None: # User gives Cl(mask)
         if verbose:
             print('Using Cls given as a fits file')
@@ -970,7 +972,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
         cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
 
-    # compute fsky from the mask
+    # Compute fsky from the mask
     fsky = np.sqrt(cl_mask[0]/(4*np.pi))
     if verbose:
         print('f_sky = %.4f' %(fsky))
@@ -1003,7 +1005,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     return Sij
 
 ##### Sij_AngPow_fullsky #####
-def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
 
     import healpy as hp
     import os
