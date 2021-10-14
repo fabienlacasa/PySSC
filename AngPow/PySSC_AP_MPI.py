@@ -16,7 +16,7 @@ rdm_rep     = float(sys.argv[1])
 AngPow_path = str  (sys.argv[2])
 Np          = str  (sys.argv[3])
 
-if Np is not 'default':
+if Np != 'default':
     os.environ["OMP_NUM_THREADS"] = Np
 
 file         = np.load(AngPow_path + 'temporary_%s/ini_files.npz'%rdm_rep, allow_pickle=True)

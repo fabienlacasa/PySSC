@@ -951,7 +951,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
         assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
-    if Np is not 'default':
+    if Np != 'default':
         assert int(Np) == Np , 'the number of process per node Np must be integer'
     
     #compute the lmax for AngPow    
