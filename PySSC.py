@@ -23,27 +23,37 @@ AngPow_cosmo_params = copy.deepcopy(default_cosmo_params) ; AngPow_cosmo_params[
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', method='classic' , clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+def Sij(z_arr, windows, sky='full', method='classic' , clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     
     test_zw(z_arr,windows)
     
+    # Full sky
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         if method.casefold() in ['classic','standard','default','std']:
             Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
         elif method.casefold() in ['alternative','alt']:
             Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+        elif method.casefold() in ['angpow','ap']:
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            Sij=Sij_AngPow_fullsky(z_arr, windows, cosmo_params=cosmo_params, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic or alternative (or variants, see code for details).')
+    # Partial sky
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
         test_mask(mask, clmask)
         if method.casefold() in ['classic','standard','default']:
             Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
         elif method.casefold() in ['alt','alternative']:
             raise Exception('No implementation of the alternative method for partial sky. Use classic instead.')
+        elif method.casefold() in ['angpow','ap']:
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            Sij=Sij_AngPow(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic or alternative (or variants, see code for details).')
+    # Wrong geometry
     else:
         raise Exception('Invalid string given for sky geometry parameter. Main possibilities : full sky or partial sky (or abbreviations, see code for details).')
+
     return Sij
 
 def Sijkl(z_arr, windows, sky='full', clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3, var_tol=0.05, verbose=False, debug=False):
@@ -932,29 +942,13 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     
     test_zw(z_arr, windows)
     test_mask(mask, clmask)
+    test_inputs_angpow(cosmo_params=cosmo_params)
     
     zz  = np.asarray(z_arr)
     win = np.asarray(windows)
-
-    # If cosmo parameters are supplied, assert that a high kmax has been given
-    if cosmo_params!=AngPow_cosmo_params:
-        assert 'P_k_max_h/Mpc' in cosmo_params, 'If you supply your own cosmological parameters, you must give a high enough P_k_max_h/Mpc.'
     
-    # Test machinefile, Nn and AngPow_path
-    if machinefile is not None:
-        assert Nn is not None, 'a machinefile has been provided, but not the number of node Nn.  Nn should not exceed the number of line in the machinefile'
-        assert os.path.exists(machinefile) , 'the proposed machinefile has not been found, please update the path'
-    if Nn is not None:
-        assert int(Nn) == Nn , 'the number of nodes Nn must be integer'
-        assert machinefile is not None, 'a number of nodes Nn has been provided, but not the associated machinefile. Please create an adapted machinefile (see machinefile_example)'
-    if AngPow_path is not None:
-        assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
-    else :
-        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
-    if Np != 'default':
-        assert int(Np) == Np , 'the number of process per node Np must be integer'
     
     # Read or compute the mask angular power spectrum    
     if mask is None: # User gives Cl(mask)
@@ -1005,7 +999,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     return Sij
 
 ##### Sij_AngPow_fullsky #####
-def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
 
     import healpy as hp
     import os
@@ -1030,7 +1024,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,var_tol=0.
     hp.fitsfunc.write_cl(tmp_file,Cl_fullsky)
 
     # Call Sij_AngPow with that Cl file
-    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,var_tol=var_tol,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
+    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
 
     # Remove the temporary folder
     shutil.rmtree(AngPow_path + 'temporary_%s'%rdm, ignore_errors=True)
@@ -1057,7 +1051,38 @@ def test_zw(z_arr, windows):
 
 ##### test_mask #####
 def test_mask(mask, clmask):
+    """
+    Assert that either the mask or its Cl has been provided
+    """
     assert (mask is not None) or (clmask is not None), 'You need to provide either the mask or its angular power spectrum Cl.'
+
+##### test_inputs_angpow #####
+def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
+    """
+    Asserts that the various inputs to the AngPow routine are correct
+    """
+    # Cosmological inputs
+    if cosmo_params!=AngPow_cosmo_params:
+        assert 'P_k_max_h/Mpc' in cosmo_params, 'If you supply your own cosmological parameters, you must give a high enough P_k_max_h/Mpc.'
+    if cosmo_Class is not None:
+            raise Exception('Precomputed cosmology cannot (yet) be passed for the AngPow method. Provide cosmological parameters instead to be run by Class.')
+    if convention!=0:
+        raise Exception('Only the default kernel convention is supported for the AngPow method')
+    # Parallelisation inputs
+    import os
+    if machinefile is not None:
+        assert Nn is not None, 'a machinefile has been provided, but not the number of node Nn.  Nn should not exceed the number of line in the machinefile'
+        assert os.path.exists(machinefile) , 'the proposed machinefile has not been found, please update the path'
+    if Nn is not None:
+        assert int(Nn) == Nn , 'the number of nodes Nn must be integer'
+        assert machinefile is not None, 'a number of nodes Nn has been provided, but not the associated machinefile. Please create an adapted machinefile (see machinefile_example)'
+    if AngPow_path is not None:
+        assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
+    else:
+        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+    if Np != 'default':
+        assert int(Np) == Np , 'the number of process per node Np must be integer'
+
 
 ##### find_lmax #####
 def find_lmax(ell, cl_mask, var_tol, debug=False):
