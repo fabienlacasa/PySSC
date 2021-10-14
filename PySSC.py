@@ -924,6 +924,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 #################################          ANGPOW ROUTINES         #################################
 ####################################################################################################
 
+##### Sij_AngPow #####
 def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,AngPow_path=None,verbose=False,debug=False):
 
     import time
@@ -1000,8 +1001,31 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     
     return Sij
 
+##### Sij_AngPow_fullsky #####
+def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,AngPow_path=None,verbose=False,debug=False):
 
+    import healpy as hp
+    import os
+    
+    test_zw(z_arr, windows)
+    
+    # Define the angular power spectrum of a mask that is 1 over the full sky
+    Cl_fullsky=np.zeros(10) ; Cl_fullsky[0]=4*pi
 
+    # Write the Cl to a temporary file
+    rdm = np.random.random()
+    tmp_file = './tmp_Cl_M_PySSC_%s'%rdm+'.fits'
+    hp.fitsfunc.write_cl(tmp_file,Cl_fullsky)
+
+    # Call Sij_AngPow with that Cl file
+    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,var_tol=var_tol,machinefile=machinefile,Nn=Nn,AngPow_path=AngPow_path,verbose=verbose,debug=debug)
+
+    # Remove the temporary Cl file
+    if os.path.exists(tmp_file):
+        os.remove(tmp_file)
+
+    # Return the result
+    return Sij
 
 ####################################################################################################
 #################################        AUXILIARY ROUTINES        #################################
