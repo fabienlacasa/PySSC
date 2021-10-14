@@ -927,7 +927,6 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,AngPow_path=None,verbose=False,debug=False):
 
     import time
-    import importlib
     import os
     import shutil
     import healpy as hp
@@ -952,24 +951,6 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
     
-    
-    def find_lmax(ell,cl_mask,var_tol,debug=False):
-        assert ell.ndim==1, 'ell must be a 1-dimensional array'
-        assert cl_mask.ndim==1, 'cl_mask must be a 1-dimensional array'
-        assert len(ell)==len(cl_mask), 'ell and cl_mask must have the same size'
-        lmaxofcl      = ell.max()
-        summand       = (2*ell+1)/(4*np.pi)*cl_mask
-        var_target    = np.sum(summand)
-        #Initialisation
-        lmax          = 0
-        var_est       = np.sum(summand[:(lmax+1)])
-        while (abs(var_est - var_target)/var_target > var_tol and lmax < lmaxofcl):
-            lmax      = lmax +1
-            var_est   = np.sum(summand[:(lmax+1)])
-            if debug:
-                print('In lmax search',lmax,abs(var_est - var_target)/var_target,var_target,var_est)
-        lmax = min(lmax,lmaxofcl) #make sure we didnt overshoot at the last iteration
-        return lmax
     
     #compute the lmax for AngPow    
     if mask is None: # User gives Cl(mask)

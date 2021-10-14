@@ -2,8 +2,6 @@ import numpy as np
 from classy import Class
 import os
 from mpi4py import MPI
-import healpy as hp
-from astropy.io import fits
 import sys
 
 def spliting(arr1,arr2,number_at_the_end):
