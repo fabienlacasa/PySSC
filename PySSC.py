@@ -925,7 +925,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 ####################################################################################################
 
 ##### Sij_AngPow #####
-def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
 
     import time
     import os
@@ -951,7 +951,8 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
         assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
-    
+    if Np is not 'default':
+        assert int(Np) == Np , 'the number of process per node Np must be integer'
     
     #compute the lmax for AngPow    
     if mask is None: # User gives Cl(mask)
@@ -989,9 +990,9 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     present_rep = os.getcwd()
     #run MPI AngPow routine
     if Nn is not None:
-        os.system('mpiexec -f %s -n %i python %s/AngPow/PySSC_AP_MPI.py %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path))
+        os.system('mpiexec -f %s -n %i python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path,Np))
     else:
-        os.system('python %s/AngPow/PySSC_AP_MPI.py %s %s'%(present_rep,rdm,AngPow_path))
+        os.system('python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(present_rep,rdm,AngPow_path,Np))
     time.sleep(10)
     
     #load Sij result
@@ -1002,7 +1003,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=default_cosmo_pa
     return Sij
 
 ##### Sij_AngPow_fullsky #####
-def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
 
     import healpy as hp
     import os
@@ -1018,7 +1019,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=default_cosmo_params,var_tol=0
     hp.fitsfunc.write_cl(tmp_file,Cl_fullsky)
 
     # Call Sij_AngPow with that Cl file
-    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,var_tol=var_tol,machinefile=machinefile,Nn=Nn,AngPow_path=AngPow_path,verbose=verbose,debug=debug)
+    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,var_tol=var_tol,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
 
     # Remove the temporary Cl file
     if os.path.exists(tmp_file):

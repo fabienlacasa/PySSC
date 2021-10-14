@@ -14,6 +14,10 @@ comm = MPI.COMM_WORLD ; size = comm.Get_size() ; rank = comm.Get_rank()
 
 rdm_rep     = float(sys.argv[1])
 AngPow_path = str  (sys.argv[2])
+Np          = str  (sys.argv[3])
+
+if Np is not 'default':
+    os.environ["OMP_NUM_THREADS"] = Np
 
 file         = np.load(AngPow_path + 'temporary_%s/ini_files.npz'%rdm_rep, allow_pickle=True)
 zz           = file['arr_0']
