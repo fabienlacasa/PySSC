@@ -1,0 +1,5 @@
+math
+numpy>=1.15
+scipy
+matplotlib>=2.2
+classy@ git+git://github.com/lesgourg/class_public
