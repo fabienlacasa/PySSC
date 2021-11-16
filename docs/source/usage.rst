@@ -4,7 +4,7 @@ Usage
 After installing all the required dependencies, import the module with ``import PySSC``.
 
 
-Creating recipes
+Computing Sij matrices
 ----------------
 
 The module contains functions to compute the Sij matrix (defined in the article) that allows to easily build the SSC covariance matrix.

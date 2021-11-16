@@ -3,6 +3,8 @@ PySSC
 
 The ``PySSC`` module is Python implementation of the fast Super-Sample Covariance (SSC) from Lacasa & Grain 2018 arXiv:1809.05437
 
+!! You need to install classy (see http://github.com/lesgourg/class_public) !!
+
 The following example computes the full sky Sij matrix for top-hat redshift bins
 
 .. code-block:: python
