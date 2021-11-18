@@ -1005,6 +1005,31 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 
 ##### Sij_AngPow #####
 def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+    """
+    Routine to compute the Sij matrix in partial sky using AngPow.
+    
+    Inputs :
+    - z_arr : table of redshifts, size nz.
+    - windows : 2D table for the collection of kernels, shape (nbins,nz).
+    
+    Output :
+    - Sij matrix, shape (nbins,nbins,nbins,nbins).
+    
+    Optional inputs :
+    - cosmo_params : cosmology or cosmological parameters.
+        Format : dictionary with same format as classy (python wrapper for CLASS)
+    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+        Format : dictionary with same format as classy (python wrapper for CLASS)
+    - clmask : fits file containing the angular power spectrum of the mask.
+    - mask : fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+    - machinefile : path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
+    - Nn : number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
+    - Np : equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
+    - AngPow_path : path to the Angpow repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
+    
+    """
 
     import time
     import os
@@ -1071,7 +1096,28 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
 
 ##### Sij_AngPow_fullsky #####
 def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
-
+    """
+    Routine to compute the Sij matrix in full sky using AngPow.
+    
+    Inputs :
+    - z_arr : table of redshifts, size nz.
+    - windows : 2D table for the collection of kernels, shape (nbins,nz).
+    
+    Output :
+    - Sij matrix, shape (nbins,nbins,nbins,nbins).
+    
+    Optional inputs :
+    - cosmo_params : cosmology or cosmological parameters.
+        Format : dictionary with same format as classy (python wrapper for CLASS)
+    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+        Format : dictionary with same format as classy (python wrapper for CLASS)
+    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+    - machinefile : path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
+    - Nn : number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
+    - Np : equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
+    - AngPow_path : path to the Angpow repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
+    
+    """
     import healpy as hp
     import os
     import shutil
