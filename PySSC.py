@@ -51,10 +51,10 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     - mask : [partial sky only] fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
     - var_tol : [partial sky only] float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - machinefile : [AngPow only] string pointing to a machinefile for MPI
-    - Nn : [AngPow only] number of cores on which to run AngPow.
-    - Np : [AngPow only] maximum number of threads per computer used by AngPow. Default: let AngPow use everything.
-    - AngPow_path : [AngPow only] path to the AngPow binary. Default: looks for Angpow/Angpow/bin in the current directory.
+    - machinefile : [AngPow only] path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
+    - Nn : [AngPow only] number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
+    - Np : [AngPow only] equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
+    - AngPow_path : [AngPow only] path to the Angpow binary repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
     """
 
     test_zw(z_arr,windows)
