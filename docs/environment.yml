@@ -1,0 +1,9 @@
+name: docs-pyssc
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - sphinx==4.3.0
+  - nbsphinx==0.8.1 
+  - pip:
+    - sphinx_rtd_theme==1.0.0
