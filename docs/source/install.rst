@@ -26,3 +26,7 @@ Optional requirements
 Installing
 ----------
 Simply clone the repository, then put the PySSC.py module in your Python path
+   .. code-block::
+    
+    git clone https://github.com/fabienlacasa/PySSC.git
+    
