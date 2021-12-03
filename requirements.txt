@@ -1,4 +1,10 @@
 math
 numpy
 scipy
+copy
 classy
+healpy
+astropy.io
+time
+os
+shutil
