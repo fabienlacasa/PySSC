@@ -105,7 +105,7 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
 
     AngPow_path : str, default None
         path to the Angpow binary repertory (finishing by '/').
-        Default is None and assumes that AngPow is installed at './AngPow/AngPow/'.
+        Default is None and assumes that AngPow is installed at './AngPow/'.
 
     verbose : bool, default False
         Verbosity of the routine.
@@ -1352,7 +1352,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
 
     AngPow_path : str, default None
         path to the Angpow binary repertory (finishing by '/').
-        Default is None and assumes that AngPow is installed at './AngPow/AngPow/'.
+        Default is None and assumes that AngPow is installed at './AngPow/'.
 
     verbose : bool, default False
         Verbosity of the routine.
@@ -1382,7 +1382,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     win = np.asarray(windows)
     
     if AngPow_path is None:
-        AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
+        AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
     # Read or compute the mask angular power spectrum    
     if mask is None: # User gives Cl(mask)
@@ -1420,9 +1420,9 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     present_rep = os.getcwd()
     #run MPI AngPow routine
     if Nn is not None:
-        os.system('mpiexec -f %s -n %i python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path,Np))
+        os.system('mpiexec -f %s -n %i python %s/AngPow_tools/PySSC_AP_MPI.py %s %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path,Np))
     else:
-        os.system('python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(present_rep,rdm,AngPow_path,Np))
+        os.system('python %s/AngPow_tools/PySSC_AP_MPI.py %s %s %s'%(present_rep,rdm,AngPow_path,Np))
     time.sleep(10)
     
     #load Sij result
@@ -1473,7 +1473,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
 
     AngPow_path : str, default None
         path to the Angpow binary repertory (finishing by '/').
-        Default is None and assumes that AngPow is installed at './AngPow/AngPow/'.
+        Default is None and assumes that AngPow is installed at './AngPow/'.
 
     verbose : bool, default False
         Verbosity of the routine.
@@ -1499,9 +1499,9 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
     if AngPow_path is not None:
         assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
     else :
-        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+        assert os.path.exists('./AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/bin/angpow, please make sure the angpow compilation has been correctly done (cd AngPow ; make) or give another angpow path in the AngPow_path option'
     if AngPow_path is None:
-        AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
+        AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
     # Define the angular power spectrum of a mask that is 1 over the full sky
     Cl_fullsky=np.zeros(10) ; Cl_fullsky[0]=4*pi
@@ -1568,7 +1568,7 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, conve
     if AngPow_path is not None:
         assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
     else:
-        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+        assert os.path.exists('./AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
     if Np != 'default':
         assert int(Np) == Np , 'the number of process per node Np must be integer'
 

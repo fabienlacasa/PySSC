@@ -28,5 +28,6 @@ Installing
 Simply clone the repository, then put the PySSC.py module in your Python path
    .. code-block::
     
-    git clone https://github.com/fabienlacasa/PySSC.git
+    git clone --recurse-submodules https://github.com/fabienlacasa/PySSC.git
     
+Note that the --recurse-submodules argument also install the `AngPow <https://gitlab.in2p3.fr/campagne/AngPow>`_. submodule
