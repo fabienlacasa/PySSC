@@ -1,0 +1,3 @@
+[submodule "AngPow"]
+	path = AngPow
+	url = https://gitlab.in2p3.fr/campagne/AngPow.git
