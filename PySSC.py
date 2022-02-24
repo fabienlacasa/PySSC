@@ -39,25 +39,25 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
-    sky : str, default `'full'`
+    sky : str, default ``'full'``
         Choice of survey geometry, given as a case-insensitive string.
         Valid choices: \n
-        (i) `'full'`/`'fullsky'`/`'full sky'`/`'full-sky'`,
-        (ii) `'psky'`/`'partial sky'`/`'partial-sky'`/`'partial'`/`'masked'`.
+        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
+        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
 
-    method : str, default `'classic'`
+    method : str, default ``'classic'``
         Choice of computational method, given as a case-insensitive string.
         Valid choices: \n
-        (i) `'classic'`/`'standard'`/`'default'`/`'std'`,
-        (ii) `'alternative'`/`'alt'` (only available for full sky),
-        (iii) `'AngPow'`/`'AP'`.
+        (i) ``'classic'``/``'standard'``/``'default'``/``'std'``,
+        (ii) ``'alternative'``/``'alt'`` (only available for full sky),
+        (iii) ``'AngPow'``/``'AP'``.
 
-        `'classic'` calls to `PySSC.Sij_fullsky` or `PySSC.Sij_psky` routine. \n
-        `'alternative'` calls to `PySSC.Sij_alt_fullsky` only in the case of `sky` set to `'full'`. \n
-        `'AngPow'` calls to `PySSC.Sij_Angpow` or `PySSC.Sij_AngPow_fullsky`.
+        ``'classic'`` calls to `PySSC.Sij_fullsky` or `PySSC.Sij_psky` routine. \n
+        ``'alternative'`` calls to `PySSC.Sij_alt_fullsky` only in the case of `sky` set to ``'full'``. \n
+        ``'AngPow'`` calls to `PySSC.Sij_Angpow` or `PySSC.Sij_AngPow_fullsky`.
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
@@ -105,7 +105,7 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
 
     AngPow_path : str, default None
         path to the Angpow binary repertory (finishing by '/').
-        Default is None and assumes that AngPow is installed at './AngPow/'.
+        Default is None and assumes that AngPow is installed at ``'./AngPow/'``.
 
     verbose : bool, default False
         Verbosity of the routine.
@@ -167,14 +167,14 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
-    sky : str, default 'full'
+    sky : str, default ``'full'``
         Choice of survey geometry, given as a case-insensitive string.
         Valid choices: \n
-        (i) 'full'/'fullsky'/'full sky'/'full-sky'. \n
-        (ii) 'psky'/'partial sky'/'partial-sky'/'partial'/'masked'.
+        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
+        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
@@ -251,7 +251,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
         2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology.
@@ -390,7 +390,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
        2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
-       Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
        classy.Class object containing precomputed cosmology.
@@ -540,7 +540,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
        2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
-       Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
        classy.Class object containing precomputed cosmology.
@@ -714,7 +714,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
        2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
-       Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
        classy.Class object containing precomputed cosmology.
@@ -959,7 +959,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
         Radius of the survey mask in deg.
 
     cosmo_params : dict, default `default_cosmo_params`
-       Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
        classy.Class object containing precomputed cosmology.
@@ -1079,7 +1079,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
         Only implemented if `sky` is set to 'psky'.
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology, \
@@ -1324,7 +1324,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
@@ -1345,7 +1345,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
         Default is None. If not None, the machinefile variable must be set by the user.
         Only implemented if `method` is set to AngPow.
 
-    Np : str, default 'default'
+    Np : str, default ``'default'``
      Equivalent to set the local environment variable OMP_NUM_THREADS to Np.
      It represents the number of processes AngPow is allowed to use on each machine.
      Default is 'default' : AngPow uses the pre-existing `OMP_NUM_THREADS` value.
@@ -1445,7 +1445,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
         2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
     cosmo_Class : classy.Class object, default None
         classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
