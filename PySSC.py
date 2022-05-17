@@ -25,7 +25,7 @@ AngPow_cosmo_params['P_k_max_h/Mpc']=20
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo_params,
+def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=default_cosmo_params,
         cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None,
         var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     """Wrapper routine to compute the Sij matrix.
@@ -128,11 +128,11 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     # Full sky
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         if method.casefold() in ['classic','standard','default','std']:
-            Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+            Sij=Sij_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
         elif method.casefold() in ['alternative','alt']:
-            Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+            Sij=Sij_alt_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
         elif method.casefold() in ['angpow','ap']:
-            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
             Sij=Sij_AngPow_fullsky(z_arr, windows, cosmo_params=cosmo_params, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
@@ -140,11 +140,11 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
         test_mask(mask, clmask)
         if method.casefold() in ['classic','standard','default']:
-            Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
+            Sij=Sij_psky(z_arr, windows, order=order, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
         elif method.casefold() in ['alt','alternative']:
             raise Exception('No implementation of the alternative method for partial sky. Use classic instead.')
         elif method.casefold() in ['angpow','ap']:
-            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
             Sij=Sij_AngPow(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
@@ -239,7 +239,7 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 ####################################################################################################
 
 ##### Sij_fullsky #####
-def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
+def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
     """ Routine to compute the Sij matrix in full sky. Standard computation method.
 
     Parameters
@@ -336,7 +336,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
     # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
@@ -356,7 +356,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     for ibin in range(nbins):
         for ik in range(nk):
             kr            = kk[ik]*comov_dist
-            integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+            integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
@@ -378,7 +378,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     return Sij
 
 ##### Sij_alt_fullsky #####
-def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
+def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
     """Alternative routine to compute the Sij matrix in full sky.
 
     Parameters
@@ -508,7 +508,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
     
@@ -518,7 +518,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
     #For i<=j
     for i1 in range(nbins):
         for i2 in range(i1,nbins):
-            integrand  = prefactor * (windows[i1,:]**2 * windows[i2,:,None]**2)
+            integrand  = prefactor * (windows[i1,:]**order * windows[i2,:,None]**order)
             Sij[i1,i2] = integrate.simps(integrate.simps(integrand,zz),zz)/(Inorm[i1]*Inorm[i2])
     #Fill by symmetry   
     for i1 in range(nbins):
@@ -702,7 +702,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
 ####################################################################################################
 
 ##### Sij_psky #####
-def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     """Routine to compute the Sijkl matrix in partial sky.
 
     Parameters
@@ -842,7 +842,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2 
+        integrand = dX_dz * windows[i1,:]**order 
         Inorm[i1] = integrate.simps(integrand,zz)
 
 
@@ -864,7 +864,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         for ibin in range(nbins):
             for ik in range(nk):
                 kr            = kk[ik]*comov_dist
-                integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+                integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
                 Uarr[ibin,ik] = integrate.simps(integrand,zz)
         Cl_zero     = np.zeros((nbins,nbins))
         #For i<=j
@@ -902,7 +902,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         for ll in ell:
             bessel_jl = jn(ll,kr)
             for ibin in range(nbins):
-                integrand        = dX_dz * windows[ibin,:]**2 * growth * bessel_jl
+                integrand        = dX_dz * windows[ibin,:]**order * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/I_\mathrm{norm}(i) U(j;kk,ell)/I_\mathrm{norm}(j)
@@ -1546,7 +1546,7 @@ def test_mask(mask, clmask):
     assert (mask is not None) or (clmask is not None), 'You need to provide either the mask or its angular power spectrum Cl.'
 
 ##### test_inputs_angpow #####
-def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
+def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order=2, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
     """
     Asserts that the various inputs to the AngPow routine are correct
     """
@@ -1557,6 +1557,8 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, conve
             raise Exception('Precomputed cosmology cannot (yet) be passed for the AngPow method. Provide cosmological parameters instead to be run by Class.')
     if convention!=0:
         raise Exception('Only the default kernel convention is supported for the AngPow method')
+    if order!=2:
+        raise Exception('Only order=2 is supported for the AngPow method')
     # Parallelisation inputs
     import os
     if machinefile is not None:
@@ -1737,6 +1739,6 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_C
     return Sij
 
 if __name__ == "__main__":
-    print("test")
+    print("test")           #To make the file executable for readthedocs compilation
 	
 # End of PySSC.py
