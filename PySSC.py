@@ -25,8 +25,8 @@ AngPow_cosmo_params['P_k_max_h/Mpc']=20
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo_params,
-        cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None,
+def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=default_cosmo_params,
+        cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None, mask2=None, 
         var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     """Wrapper routine to compute the Sij matrix.
     It calls different routines depending on the inputs : fullsky or partial sky, computation method.    
@@ -38,6 +38,12 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
 
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     sky : str, default ``'full'``
         Choice of survey geometry, given as a case-insensitive string.
@@ -80,6 +86,14 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to psky
+
+    mask2 : str, default None
+        Path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
 
     var_tol : float, default 0.05
          Float that drives the target precision for the sum over angular multipoles.
@@ -128,24 +142,24 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     # Full sky
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         if method.casefold() in ['classic','standard','default','std']:
-            Sij=Sij_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+            Sij=Sij_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
         elif method.casefold() in ['alternative','alt']:
-            Sij=Sij_alt_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+            Sij=Sij_alt_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
         elif method.casefold() in ['angpow','ap']:
-            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
             Sij=Sij_AngPow_fullsky(z_arr, windows, cosmo_params=cosmo_params, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
     # Partial sky
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
-        test_mask(mask, clmask)
+        test_mask(mask, clmask, mask2=mask2)
         if method.casefold() in ['classic','standard','default']:
-            Sij=Sij_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
+            Sij=Sij_psky(z_arr, windows, order=order, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
         elif method.casefold() in ['alt','alternative']:
             raise Exception('No implementation of the alternative method for partial sky. Use classic instead.')
         elif method.casefold() in ['angpow','ap']:
-            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
-            Sij=Sij_AngPow(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
+            test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
+            Sij=Sij_AngPow(z_arr, windows, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
     # Wrong geometry
@@ -155,7 +169,7 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
     return Sij
 
 def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
-          clmask=None, mask=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
+          clmask=None, mask=None, mask2=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
     """ Wrapper routine to compute the Sijkl matrix.
     It calls different routines depending on the inputs : full sky or partial sky methods.
 
@@ -198,6 +212,14 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to 'psky'.
 
+    mask2 : str, default None
+        Path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
+
     var_tol : float, default 0.05
          Float that drives the target precision for the sum over angular multipoles.
          Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
@@ -228,8 +250,8 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         Sijkl=Sijkl_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
-        test_mask(mask, clmask)
-        Sijkl=Sijkl_psky(z_arr, windows, clmask=clmask, mask=mask, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
+        test_mask(mask, clmask, mask2=mask2)
+        Sijkl=Sijkl_psky(z_arr, windows, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
     else:
         raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
     return Sijkl
@@ -239,7 +261,7 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 ####################################################################################################
 
 ##### Sij_fullsky #####
-def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
+def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
     """ Routine to compute the Sij matrix in full sky. Standard computation method.
 
     Parameters
@@ -249,6 +271,12 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
 
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     cosmo_params : dict, default `default_cosmo_params`
         Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
@@ -336,7 +364,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
     # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
@@ -356,7 +384,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     for ibin in range(nbins):
         for ik in range(nk):
             kr            = kk[ik]*comov_dist
-            integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+            integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
@@ -378,7 +406,7 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
     return Sij
 
 ##### Sij_alt_fullsky #####
-def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
+def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
     """Alternative routine to compute the Sij matrix in full sky.
 
     Parameters
@@ -388,6 +416,12 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
 
     windows : array_like
        2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     cosmo_params : dict, default `default_cosmo_params`
        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
@@ -508,7 +542,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2
+        integrand = dX_dz * windows[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
     
@@ -518,7 +552,7 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
     #For i<=j
     for i1 in range(nbins):
         for i2 in range(i1,nbins):
-            integrand  = prefactor * (windows[i1,:]**2 * windows[i2,:,None]**2)
+            integrand  = prefactor * (windows[i1,:]**order * windows[i2,:,None]**order)
             Sij[i1,i2] = integrate.simps(integrate.simps(integrand,zz),zz)/(Inorm[i1]*Inorm[i2])
     #Fill by symmetry   
     for i1 in range(nbins):
@@ -702,7 +736,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
 ####################################################################################################
 
 ##### Sij_psky #####
-def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     """Routine to compute the Sijkl matrix in partial sky.
 
     Parameters
@@ -712,6 +746,12 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
 
     windows : array_like
        2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     cosmo_params : dict, default `default_cosmo_params`
        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
@@ -739,6 +779,14 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to psky
+
+    mask2 : str, default None
+        Path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
 
     var_tol : float, default 0.05
          Float that drives the target precision for the sum over angular multipoles.
@@ -770,7 +818,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     with :math:`I_\mathrm{norm}(i) = \int  dX \  W(i,z)^2`
     and  :math:`U(i;k,\ell) = \int dX \  W(i,z)^2 \ G(z) \ j_\ell(k r)`
     """
-    #windows[windows<5e-100] = 0.
+
     import healpy as hp
     from scipy.special import spherical_jn as jn
     from astropy.io import fits
@@ -789,11 +837,15 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')
+            print('Using mask map, given as a fits file')    
         map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
-        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        if mask2 is None:
+            map_mask2 = copy.copy(map_mask)
+        else:
+            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
     
     # compute fsky from the mask
@@ -842,7 +894,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**2 
+        integrand = dX_dz * windows[i1,:]**order 
         Inorm[i1] = integrate.simps(integrand,zz)
 
 
@@ -864,7 +916,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         for ibin in range(nbins):
             for ik in range(nk):
                 kr            = kk[ik]*comov_dist
-                integrand     = dX_dz * windows[ibin,:]**2 * growth * np.sin(kr)/kr
+                integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
                 Uarr[ibin,ik] = integrate.simps(integrand,zz)
         Cl_zero     = np.zeros((nbins,nbins))
         #For i<=j
@@ -902,7 +954,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
         for ll in ell:
             bessel_jl = jn(ll,kr)
             for ibin in range(nbins):
-                integrand        = dX_dz * windows[ibin,:]**2 * growth * bessel_jl
+                integrand        = dX_dz * windows[ibin,:]**order * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/I_\mathrm{norm}(i) U(j;kk,ell)/I_\mathrm{norm}(j)
@@ -1056,7 +1108,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
 
     
 ##### Sijkl_psky #####
-def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
+def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
                convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
     """Routine to compute the Sijkl matrix in partial sky.
 
@@ -1077,6 +1129,14 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to 'psky'.
+    
+    mask2 : str, default None
+        Path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
 
     cosmo_params : dict, default `default_cosmo_params`
         Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
@@ -1149,11 +1209,15 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')
+            print('Using mask map, given as a fits file')    
         map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
-        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        if mask2 is None:
+            map_mask2 = copy.copy(map_mask)
+        else:
+            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
         
     # compute fsky from the mask
@@ -1304,7 +1368,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 ####################################################################################################
 
 ##### Sij_AngPow #####
-def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=AngPow_cosmo_params, var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     """Routine to compute the Sij matrix in partial sky using AngPow.
 
     Parameters
@@ -1322,6 +1386,14 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
         Path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+
+    mask2 : str, default None
+        Path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
 
     cosmo_params : dict, default `default_cosmo_params`
         Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
@@ -1375,7 +1447,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     import healpy as hp
     
     test_zw(z_arr, windows)
-    test_mask(mask, clmask)
+    test_mask(mask, clmask, mask2=mask2)
     test_inputs_angpow(cosmo_params=cosmo_params)
     
     zz  = np.asarray(z_arr)
@@ -1393,11 +1465,15 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')
-        map_mask = hp.read_map(str(mask),verbose=False)
+            print('Using mask map, given as a fits file')    
+        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
-        cl_mask  = hp.anafast(map_mask, lmax=lmaxofcl)
+        if mask2 is None:
+            map_mask2 = copy.copy(map_mask)
+        else:
+            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
 
     # Compute fsky from the mask
@@ -1539,14 +1615,21 @@ def test_zw(z_arr, windows):
     assert zz.min()>0, 'z_arr must have values > 0'
 
 ##### test_mask #####
-def test_mask(mask, clmask):
+def test_mask(mask, clmask, mask2=None):
     """
-    Assert that either the mask or its Cl has been provided
+    Assert that either the mask or its Cl has been provided. If two masks are provided, check that they have the same resolution.
     """
     assert (mask is not None) or (clmask is not None), 'You need to provide either the mask or its angular power spectrum Cl.'
+    if mask2 is not None:
+        import healpy as hp
+        map_mask  = hp.read_map(str(mask), dtype=np.float64, verbose=False)
+        nside     = hp.pixelfunc.get_nside(map_mask)
+        map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+        nside2    = hp.pixelfunc.get_nside(map_mask2)
+        assert nside==nside2, 'The resolutions (nside) of both masks need to be the same.'
 
 ##### test_inputs_angpow #####
-def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
+def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order=2, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
     """
     Asserts that the various inputs to the AngPow routine are correct
     """
@@ -1556,7 +1639,9 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, conve
     if cosmo_Class is not None:
             raise Exception('Precomputed cosmology cannot (yet) be passed for the AngPow method. Provide cosmological parameters instead to be run by Class.')
     if convention!=0:
-        raise Exception('Only the default kernel convention is supported for the AngPow method')
+        raise Exception('Only the default kernel convention is supported for the AngPow method.')
+    if order!=2:
+        raise Exception('Only order=2 is supported for the AngPow method.')
     # Parallelisation inputs
     import os
     if machinefile is not None:
@@ -1737,6 +1822,6 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_C
     return Sij
 
 if __name__ == "__main__":
-    print("test")
+    print("test")           #To make the file executable for readthedocs compilation
 	
 # End of PySSC.py
