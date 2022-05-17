@@ -17,44 +17,110 @@ from classy import Class
 # Default values for redshift bin, cosmo parameters etc
 default_zstakes = [0.9,1]
 default_cosmo_params = {'omega_b':0.022, 'omega_cdm':0.12, 'H0':67., 'n_s':0.96, 'A_s' : 2.035e-9, 'output' : 'mPk'}
-AngPow_cosmo_params = copy.deepcopy(default_cosmo_params) ; AngPow_cosmo_params['z_max_pk']=0 ; AngPow_cosmo_params['P_k_max_h/Mpc']=20
+AngPow_cosmo_params = copy.deepcopy(default_cosmo_params)
+AngPow_cosmo_params['z_max_pk']=0
+AngPow_cosmo_params['P_k_max_h/Mpc']=20
 
 ####################################################################################################
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None, var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
-    """
-    Wrapper routine to compute the Sij matrix.
+def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo_params,
+        cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None,
+        var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
+    """Wrapper routine to compute the Sij matrix.
     It calls different routines depending on the inputs : fullsky or partial sky, computation method.    
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-    - sky : choice of survey geometry, given as a case-insensitive string.
-        Valid choices : (i) full/fullsky/full sky/full-sky, (ii) psky/partial sky/partial-sky/partial/masked.
-    - method : choice of computational method, given as a case-insensitive string.
-        Valid choices : (i) classic/standard/default/std, (ii) alternative/alt, (iii) AngPow/AP
-        Choice (ii) is only available for full sky.
-  
-    Output : Sij matrix, shape (nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
-    - clmask : [partial sky only] fits file containing the angular power spectrum of the mask.
-    - mask : [partial sky only] fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-    - var_tol : [partial sky only] float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - machinefile : [AngPow only] path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
-    - Nn : [AngPow only] number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
-    - Np : [AngPow only] equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
-    - AngPow_path : [AngPow only] path to the Angpow binary repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    sky : str, default ``'full'``
+        Choice of survey geometry, given as a case-insensitive string.
+        Valid choices: \n
+        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
+        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
+
+    method : str, default ``'classic'``
+        Choice of computational method, given as a case-insensitive string.
+        Valid choices: \n
+        (i) ``'classic'``/``'standard'``/``'default'``/``'std'``,
+        (ii) ``'alternative'``/``'alt'`` (only available for full sky),
+        (iii) ``'AngPow'``/``'AP'``.
+
+        ``'classic'`` calls to `PySSC.Sij_fullsky` or `PySSC.Sij_psky` routine. \n
+        ``'alternative'`` calls to `PySSC.Sij_alt_fullsky` only in the case of `sky` set to ``'full'``. \n
+        ``'AngPow'`` calls to `PySSC.Sij_Angpow` or `PySSC.Sij_AngPow_fullsky`.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosis , Euclid Forecasts.
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    clmask : str, default None
+        Path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str, default None
+        Path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to psky
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    machinefile : str, default None
+        Path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads.
+        machinefile is used for parallel computing in mpi.
+        Default is None (running in local). If not None, the `Nn` variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Nn : int, default None
+        Number of threads on which the user wants the AngPow routine to be run in mpi.
+        This number should not exceed the maximum number of threads provided in machinefile.
+        Default is None. If not None, the machinefile variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Np : str, default 'default'
+     Equivalent to set the local environment variable OMP_NUM_THREADS to Np.
+     It represents the number of processes AngPow is allowed to use on each machine.
+     Default is 'default' : AngPow uses the pre-existing `OMP_NUM_THREADS` value.
+
+    AngPow_path : str, default None
+        path to the Angpow binary repertory (finishing by '/').
+        Default is None and assumes that AngPow is installed at ``'./AngPow/'``.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False.
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    Array_like
+        Sij matrix of shape (nbins, nbins).
+
     """
 
     test_zw(z_arr,windows)
@@ -88,32 +154,73 @@ def Sij(z_arr, windows, sky='full', method='classic', cosmo_params=default_cosmo
 
     return Sij
 
-def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
-    """
-    Wrapper routine to compute the Sijkl matrix.
-    It calls different routines depending on the input : fullsky or partial sky.    
+def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
+          clmask=None, mask=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
+    """ Wrapper routine to compute the Sijkl matrix.
+    It calls different routines depending on the inputs : full sky or partial sky methods.
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-    - sky : choice of survey geometry, given as a case-insensitive string.
-        Valid choices : (i) full/fullsky/full sky/full-sky, (ii) psky/partial sky/partial-sky/partial/masked.
-  
-    Output : Sijkl matrix, shape (nbins,nbins,nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
-    - clmask : [partial sky only] fits file containing the angular power spectrum of the mask.
-    - mask : [partial sky only] fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-    - var_tol : [partial sky only] float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - tol : float. Tells PySSC to cut off (i.e. set Sijkl=0) matrix elements where there is too small overlap between the kernels so that the computation is unreliable.
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    sky : str, default ``'full'``
+        Choice of survey geometry, given as a case-insensitive string.
+        Valid choices: \n
+        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
+        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosic , Euclid Forecasts.
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    clmask : str, default None
+        Path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str, default None
+        Path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to 'psky'.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    Array_like
+        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
+
     """
 
     test_zw(z_arr,windows)
@@ -133,33 +240,63 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 
 ##### Sij_fullsky #####
 def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
-    """
-    Routine to compute the Sij matrix in full sky. Standard computation method.   
+    """ Routine to compute the Sij matrix in full sky. Standard computation method.
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-  
-    Output : Sij matrix, shape (nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
 
-    Equation used :  Sij = 1/(2*pi^2) int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
-    with Inorm(i) = int dX window(i,z)^2 and U(i,k) = int dX window(i,z)^2 growth(z) j_0(kr)
-    This can also be seen as an angular power spectrum : Sij = C(ell=0,i,j)^S/4pi
-    with C(ell=0,i,j)^S = 2/pi int k^2 dk P(k) U(i,k)/Inorm(i) U(j,k)/Inorm(j)
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
-    dX depends on the convention used to define the window functions : Cl(i,j) = int dX window(i,z) window(j,z) P(k=(ell+1/2)/r,z)
-    0 : dX = dV = dV/dz dz = r^2(z) dr/dz dz. Used in Lacasa & Grain 2019.
-    1 : dX = dchi/chi^2 = dr/dz/r^2(z) dz. Used in cosmosis.
-    The convention of the Euclid Forecasts is nearly the same, up to a factor c^2 (or (c/HO)^2 depending on the probe), which is a constant so does not matter in the ratio here.
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology.
+        If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosic , Euclid Forecasts.
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    Returns
+    -------
+
+    Array_like
+        Sij matrix of shape (nbins, nbins).
+
+    Notes
+    -----
+    Equation used
+
+    .. math::
+        S_{ij} = \\frac{1}{2\pi^2} \int k^2 dk \ P(k)  \\frac{U(i,k)}{I_\mathrm{norm}(i)} \\frac{U(j,k)}{I_\mathrm{norm}(j)}
+    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^2` and :math:`U(i,k) = \int dX \ W(i,z)^2 \ G(z) \ j_0(kr)`.
+    
+    This can also be seen as an angular power spectrum:
+
+    .. math::
+       S_{ij} = \\frac{C_S(\ell=0,i,j)}{4 \pi}
+
+    with :math:`C_S(\ell=0,i,j) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(i,k)}{I_\mathrm{norm}(i)} \\frac{U(j,k)}{I_\mathrm{norm}(j)}`.
+
+    :math:`dX` depends on the convention used to define the observable's kernel:
+
+    .. math::
+            C_\mathrm{observable}(\ell,i,j) = \int dX \ W(i,z) \, W(j,z) \ P(k=(\ell+1/2)/r,z)
+
+    0. :math:`dX = dV = \\frac{dV}{dz} dz = r^2(z) \\frac{dr}{dz} dz`. Used in Lacasa & Grain 2019. \n
+    1. :math:`dX = d\chi/\chi^2 = \\frac{dr/dz}{r^2(z)} dz`. Used in cosmosis. \n
+    The convention of the Euclid Forecasts is nearly the same as 1 \
+    up to a factor :math:`c^2` (or :math:`\\frac{c^2}{H_0^2}` depending on the probe), \
+    which is a constant so does not matter in the ratio here.
     """
     
     # Find number of redshifts and bins
@@ -242,27 +379,58 @@ def Sij_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=N
 
 ##### Sij_alt_fullsky #####
 def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
-    """
-    Routine to compute the Sij matrix in full sky. Alternative computation method 
+    """Alternative routine to compute the Sij matrix in full sky.
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-  
-    Output : Sij matrix, shape (nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+       Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
+    windows : array_like
+       2d array for the collection of kernels, shape (nbins, nz).
 
-    Equation used : Sij = int dX1 dX2 window(i,z1)^2/Inorm(i) window(j,z2)^2/Inorm(j) sigma2(z1,z2)
-    with Inorm(i) = int dX window(i,z)^2 and sigma2(z1,z2) = 1/(2*pi^2) int k^2 dk P(k|z1,z2) j_0(kr1) j_0(kr2)
-    which can be rewritten as sigma2(z1,z2) = 1/(2*pi^2*r1r2) G(z1) G(z2) int dk P(k,z=0) [cos(k(r1-r2))-cos(k(r1+r2))]/2
-    which can be computed with an FFT
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+       Integer to dictate the convention used in the definition of the kernels.
+       0 = Lacasa & Grain 2019.
+       1 = Cosmosic , Euclid Forecasts
+       Defaults to 0.
+
+    Returns
+    -------
+
+    array_like
+       Sij matrix of shape (nbins, nbins).
+
+    Notes
+    -----
+    Equation used
+
+    .. math::
+        S_{ij} = \int dX_1 \, dX_2 \\frac{W(i,z_1)^2}{I_\mathrm{norm}(i)} \\frac{W(j,z_2)^2}{I_\mathrm{norm}(j)} \ \sigma^2(z_1,z_2)
+
+    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^2` and \
+    :math:`\sigma^2(z_1,z_2) = \\frac{1}{2\pi^2} \int k^2 dk \ P(k|z_1,z_2) \ j_0(kr_1) j_0(kr_2)`.
+    The latter can be rewritten as \
+    :math:`\sigma^2(z_1,z_2) = \\frac{1}{2 \pi^2 r_1 r_2} G(z_1) G(z_2) \int dk \ P(k,z=0) \left[\cos\left(k(r_1-r_2)\\right)-\cos\left(k(r_1+r_2)\\right)\\right]/2` \
+    and computed with an FFT.
+
+    :math:`dX` depends on the convention used to define the observable's kernel:
+
+    .. math::
+            C_\mathrm{observable}(\ell,i,j) = \int dX \ W(i,z) \, W(j,z) \ P(k=(\ell+1/2)/r,z)
+
+    0. :math:`dX = dV = \\frac{dV}{dz} dz = r^2(z) \\frac{dr}{dz} dz`. Used in Lacasa & Grain 2019. \n
+    1. :math:`dX = d\chi/\chi^2 = \\frac{dr/dz}{r^2(z)} dz`. Used in cosmosis. \n
+    The convention of the Euclid Forecasts is nearly the same as 1 \
+    up to a factor :math:`c^2` (or :math:`\\frac{c^2}{H_0^2}` depending on the probe), \
+    which is a constant so does not matter in the ratio here.
     """
 
     # Find number of redshifts and bins
@@ -361,27 +529,53 @@ def Sij_alt_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Cla
 
 ##### Sijkl_fullsky #####
 def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
-    """
-    Routine to compute the Sijkl matrix in full sky.  
+    """Routine to compute the Sijkl matrix in full sky.
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-  
-    Output : Sijkl matrix, shape (nbins,nbins,nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+       Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
-    - tol : float. Tells PySSC to cut off (i.e. set Sijkl=0) matrix elements where there is too small overlap between the kernels so that the computation is unreliable.
+    windows : array_like
+       2d array for the collection of kernels, shape (nbins, nz).
 
-    Equation used :  Sijkl = 1/(2*pi^2) \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
-    with  Inorm(i,j) = int dX window(i,z) window(j,z)  and   U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+       Integer to dictate the convention used in the definition of the kernels.
+       0 = Lacasa & Grain 2019.
+       1 = Cosmosic , Euclid Forecasts
+       Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals.
+        Nk = 2**precision.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    Returns
+    -------
+    array_like
+        Sijkl matrix, shape (nbins,nbins,nbins,nbins).
+
+    Notes
+    -----
+    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
+
+    .. math::
+        S_{\\alpha \\beta \gamma \delta}=\\frac{1}{2\pi^2} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta ; k,\ell=0)}{I_\mathrm{norm}(\\alpha,\\beta)}
+                  \\frac{U(\gamma,\delta;k,\ell=0)}{I_\mathrm{norm}(\gamma,\delta)}
+
+    with: \n
+    :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
+    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
     """
 
     # Find number of redshifts and bins
@@ -509,35 +703,74 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
 
 ##### Sij_psky #####
 def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+    """Routine to compute the Sijkl matrix in partial sky.
+
+    Parameters
+    ----------
+    z_arr : array_like
+       Input array of redshifts of size nz.
+
+    windows : array_like
+       2d array for the collection of kernels, shape (nbins, nz).
+
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+       Integer to dictate the convention used in the definition of the kernels.
+       0 = Lacasa & Grain 2019.
+       1 = Cosmosic , Euclid Forecasts
+       Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals.
+        Nk = 2**precision.
+
+    clmask : str, default None
+        Path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str, default None
+        Path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to psky
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+    array_like
+        Sij matrix, shape (nbins,nbins).
+
+    Notes
+    -----
+    Equation used:
+
+    .. math::
+        S_{ij} = \\frac{1}{(4\pi f_{\mathrm{sky}})^2} \sum_\ell (2\ell+1) \ C(\ell,\mathrm{mask}) \ C_S(\ell,i,j) 
+
+    where \
+    :math:`C_S(\ell,i,j) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(i;k,\ell)}{I_\mathrm{norm}(i)} \\frac{U(j;k,\ell)}{I_\mathrm{norm}(j)}` \n
+    with :math:`I_\mathrm{norm}(i) = \int  dX \  W(i,z)^2`
+    and  :math:`U(i;k,\ell) = \int dX \  W(i,z)^2 \ G(z) \ j_\ell(k r)`
     """
-    Routine to compute the Sij matrix in partial sky.  Standard computation method.   
-
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-  
-    Output : Sij matrix, shape (nbins,nbins).
-
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
-    - clmask : fits file containing the angular power spectrum of the mask.
-    - mask : fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-
-    Equation used : Sij = sum_ell (2ell+1) C(ell,i,j) C(ell,mask) /(4pi*fsky)^2
-    where C(ell,i,j) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
-    with Inorm(i) = int dX window(i,z)^2
-    and U(i;kk,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
-    """
-
-    windows[windows<5e-100] = 0.
+    #windows[windows<5e-100] = 0.
     import healpy as hp
     from scipy.special import spherical_jn as jn
     from astropy.io import fits
@@ -672,7 +905,7 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
                 integrand        = dX_dz * windows[ibin,:]**2 * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
-    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/Inorm(i) U(j;kk,ell)/Inorm(j)
+    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/I_\mathrm{norm}(i) U(j;kk,ell)/I_\mathrm{norm}(j)
     Cl_XY      = np.zeros((nbins,nbins,nell))
     for ll in ell:
         #For i<=j
@@ -711,17 +944,38 @@ def Sij_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_
 
 ##### Sij_flatsky #####
 def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params, cosmo_Class=None, verbose=False):
-    """
-    Routine to computing Sij according to the flat-sky approximation
+    """Routine to compute Sij according to the flat-sky approximation
     See Eq. 16 of arXiv:1612.05958
 
-    Parameters:
-       - z_arr : redshift array (must be >0)
-       - windows : values of window function on z_arr for each bin. Dimensions (nbins,len(z_arr))
-       - bin_centres : central values of redshift bins. Dimensions: (nbins)
-       - theta : radius of the survey mask in deg
-       Note: the mask is assumed to be a circle with radius theta
-       - cosmo_params : Class dictionary of cosmological parameters
+    Parameters
+    ----------
+    z_arr : array_like
+        Redshift array of size nz (must be >0)
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins,nz)
+    bin_centres : array_like
+        Central values of redshift bins. Dimensions: (nbins,)
+    theta : float
+        Radius of the survey mask in deg.
+
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+
+    Returns
+    -------
+        Array_like
+            Sij matrix of shape (nbins, nbins) in flat-sky approximation
+
+    Notes
+    -----
+    The mask is assumed to be a circle with radius theta
     """
 
     from scipy.special import spherical_jn as jn
@@ -802,33 +1056,79 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
 
     
 ##### Sijkl_psky #####
-def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
-    """
-    Routine to compute the Sijkl matrix in partial sky.
+def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
+               convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
+    """Routine to compute the Sijkl matrix in partial sky.
 
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-  
-    Output : Sijkl matrix, shape (nbins,nbins,nbins,nbins).
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
 
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - convention : integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019. 1 = cosmosis, Euclid Forecasts
-    - precision : integer which drives the number of Fourier wavenumbers in internal integrals. Nk=2**precision
-    - clmask : fits file containing the angular power spectrum of the mask.
-    - mask : fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - tol : float. Tells PySSC to cut off (i.e. set Sijkl=0) matrix elements where there is too small overlap between the kernels so that the computation is unreliable.
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
 
-    Equation used : Sijkl = sum_ell (2ell+1) C(ell;i,j;k,l) C(ell,mask) /(4pi*fsky)^2
-    where C(ell;i,j;k,l) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
-    with  Inorm(i,j) = int dX window(i,z) window(j,z)  and   U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)
+    clmask : str, default None
+        Path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str, default None
+        Path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to 'psky'.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, \
+        if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosic , Euclid Forecasts
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    Array_like
+        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
+
+    Notes
+    -----
+
+    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
+
+    .. math::
+        S_{\\alpha \\beta \gamma \delta} = \\frac{1}{(4\pi f_{\mathrm{sky}})^2} \sum_\ell (2\ell+1) \ C(\ell,\mathrm{mask}) \ C_S(\ell,\\alpha,\\beta,\gamma,\delta) 
+
+    where \
+    :math:`C(\ell,\\alpha,\\beta,\gamma,\delta) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta;k,\ell)}{I_\mathrm{norm}(\\alpha,\\beta)} \\frac{U(\gamma,\delta;k,\ell)}{I_\mathrm{norm}(\gamma,\delta)}`
+    with :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
+    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
     """
 
     import healpy as hp
@@ -909,7 +1209,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
             pairs[1,count] = jbin
             count +=1
         
-    # Compute normalisations Inorm(i,j) = int dX window(i,z) window(j,z)
+    # Compute normalisations I_\mathrm{norm}(i,j) = int dX window(i,z) window(j,z)
     Inorm       = np.zeros(npairs)
     Inorm2D     = np.zeros((nbins,nbins))
     for ipair in range(npairs):
@@ -956,7 +1256,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
                     integrand        = dX_dz * windows[ibin,:] * windows[jbin,:] * growth * bessel_jl
                     Uarr[ipair,ik,ll] = integrate.simps(integrand,zz)
 
-    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/Inorm(i,j) U(k,l;kk,ell)/Inorm(k,l)
+    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/I_\mathrm{norm}(i,j) U(k,l;kk,ell)/I_\mathrm{norm}(k,l)
     Cl_XY      = np.zeros((npairs,npairs,nell))
     for ll in ell:
         #For ipair<=jpair
@@ -1005,32 +1305,70 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, cosmo_params=default_cosm
 
 ##### Sij_AngPow #####
 def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_params,var_tol=0.05,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
-    """
-    Routine to compute the Sij matrix in partial sky using AngPow.
-    
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-    
-    Output :
-    - Sij matrix, shape (nbins,nbins,nbins,nbins).
-    
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - clmask : fits file containing the angular power spectrum of the mask.
-    - mask : fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum. Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - machinefile : path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
-    - Nn : number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
-    - Np : equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
-    - AngPow_path : path to the Angpow repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
-    
-    """
+    """Routine to compute the Sij matrix in partial sky using AngPow.
 
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
+
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    clmask : str, default None
+        Path to fits file containing the angular power spectrum of the mask.
+
+    mask : str, default None
+        Path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+
+    machinefile : str, default None
+        Path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads.
+        machinefile is used for parallel computing in mpi.
+        Default is None (running in local). If not None, the `Nn` variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Nn : int, default None
+        Number of threads on which the user wants the AngPow routine to be run in mpi.
+        This number should not exceed the maximum number of threads provided in machinefile.
+        Default is None. If not None, the machinefile variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Np : str, default ``'default'``
+     Equivalent to set the local environment variable OMP_NUM_THREADS to Np.
+     It represents the number of processes AngPow is allowed to use on each machine.
+     Default is 'default' : AngPow uses the pre-existing `OMP_NUM_THREADS` value.
+
+    AngPow_path : str, default None
+        path to the Angpow binary repertory (finishing by '/').
+        Default is None and assumes that AngPow is installed at './AngPow/'.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    array_like
+        Sij matrix of shape (nbins, nbins).
+
+    """
     import time
     import os
     import shutil
@@ -1044,7 +1382,7 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     win = np.asarray(windows)
     
     if AngPow_path is None:
-        AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
+        AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
     # Read or compute the mask angular power spectrum    
     if mask is None: # User gives Cl(mask)
@@ -1082,9 +1420,9 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
     present_rep = os.getcwd()
     #run MPI AngPow routine
     if Nn is not None:
-        os.system('mpiexec -f %s -n %i python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path,Np))
+        os.system('mpiexec -f %s -n %i python %s/AngPow_tools/PySSC_AP_MPI.py %s %s %s'%(machinefile,Nn,present_rep,rdm,AngPow_path,Np))
     else:
-        os.system('python %s/AngPow/PySSC_AP_MPI.py %s %s %s'%(present_rep,rdm,AngPow_path,Np))
+        os.system('python %s/AngPow_tools/PySSC_AP_MPI.py %s %s %s'%(present_rep,rdm,AngPow_path,Np))
     time.sleep(10)
     
     #load Sij result
@@ -1096,27 +1434,61 @@ def Sij_AngPow(z_arr,windows,clmask=None,mask=None,cosmo_params=AngPow_cosmo_par
 
 ##### Sij_AngPow_fullsky #####
 def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
-    """
-    Routine to compute the Sij matrix in full sky using AngPow.
-    
-    Inputs :
-    - z_arr : table of redshifts, size nz.
-    - windows : 2D table for the collection of kernels, shape (nbins,nz).
-    
-    Output :
-    - Sij matrix, shape (nbins,nbins,nbins,nbins).
-    
-    Optional inputs :
-    - cosmo_params : cosmology or cosmological parameters.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - cosmo_Class : dictionary containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-        Format : dictionary with same format as classy (python wrapper for CLASS)
-    - var_tol : float that drives the target precision for the sum over angular multipoles. Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-    - machinefile : path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads. machinefile is used for parallel computing in mpi. Default is None (running in local). If not None, the Nn variable must be set by the user.
-    - Nn : number of threads on which the user wants the AngPow routine to be run in mpi. This number should not exceed the maximum number of threads provided in machinefile. Default is None. If not None, the machinefile variable must be set by the user.
-    - Np : equivalent to set the local environment variable OMP_NUM_THREADS to Np. It represents the number of processes AngPow is allowed to use on each machine. Default is 'default' : AngPow uses the pre-existing OMP_NUM_THREADS value.
-    - AngPow_path : path to the Angpow repertory (finishing by '/'). Default is None : in that case AngPow must be installed in './AngPow/AngPow/'.
-    
+    """Routine to compute the Sij matrix in full sky using AngPow.
+
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
+
+    windows : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+
+    machinefile : str, default None
+        Path to text file storing the IP addresses of all the nodes in the cluster network, and associated number of threads.
+        machinefile is used for parallel computing in mpi.
+        Default is None (running in local). If not None, the `Nn` variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Nn : int, default None
+        Number of threads on which the user wants the AngPow routine to be run in mpi.
+        This number should not exceed the maximum number of threads provided in machinefile.
+        Default is None. If not None, the machinefile variable must be set by the user.
+        Only implemented if `method` is set to AngPow.
+
+    Np : str, default 'default'
+     Equivalent to set the local environment variable OMP_NUM_THREADS to Np.
+     It represents the number of processes AngPow is allowed to use on each machine.
+     Default is 'default' : AngPow uses the pre-existing `OMP_NUM_THREADS` value.
+
+    AngPow_path : str, default None
+        path to the Angpow binary repertory (finishing by '/').
+        Default is None and assumes that AngPow is installed at './AngPow/'.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    array_like
+        Sij matrix of shape (nbins, nbins).
+
     """
     import healpy as hp
     import os
@@ -1127,9 +1499,9 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
     if AngPow_path is not None:
         assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
     else :
-        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+        assert os.path.exists('./AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/bin/angpow, please make sure the angpow compilation has been correctly done (cd AngPow ; make) or give another angpow path in the AngPow_path option'
     if AngPow_path is None:
-        AngPow_path = os.getcwd() + '/AngPow/AngPow/' #finishing with '/' 
+        AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
     # Define the angular power spectrum of a mask that is 1 over the full sky
     Cl_fullsky=np.zeros(10) ; Cl_fullsky[0]=4*pi
@@ -1196,19 +1568,37 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, conve
     if AngPow_path is not None:
         assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
     else:
-        assert os.path.exists('./AngPow/AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
+        assert os.path.exists('./AngPow/bin/angpow') , 'the angpow executable is not in ./AngPow/bin/angpow, please make sure the angpow compilation has been correctly done or give another angpow path in the AngPow_path option'
     if Np != 'default':
         assert int(Np) == Np , 'the number of process per node Np must be integer'
 
 
 ##### find_lmax #####
 def find_lmax(ell, cl_mask, var_tol, debug=False):
-    """
-    Routine to search the best lmax for all later sums on multipoles
-    Inputs :
-      - ell : full vectors of multipoles. As large as possible
-      - cl_mask : power spectrum of the mask at the supplied multipoles
-    Method: smallest lmax so that we have convergence of the variance var = sum_ell (2*ell+1)/4pi * Clmask
+    # """
+    # Routine to search the best lmax for all later sums on multipoles
+    # Inputs :
+    #   - ell : full vectors of multipoles. As large as possible
+    #   - cl_mask : power spectrum of the mask at the supplied multipoles
+    # Method: smallest lmax so that we have convergence of the variance var = sum_ell (2*ell+1)/4pi * Clmask
+    # """
+    """Routine to search the best lmax for all later sums on multipoles.
+
+    Computes the smallest lmax so that we reach convergence of the variance
+    ..math ::
+        var = \sum_\ell  \\frac{(2\ell + 1)}{4\pi} C_\ell^{mask}
+
+    Parameters
+    ----------
+    ell : array_like
+        Full vector of multipoles. As large as possible of shape (nell,)
+    cl_mask : array_like
+        power spectrum of the mask at the supplied multipoles of shape (nell,).
+
+    Returns
+    -------
+    float
+        lmax
     """
 
     assert ell.ndim==1, 'ell must be a 1-dimensional array'
@@ -1234,12 +1624,20 @@ def find_lmax(ell, cl_mask, var_tol, debug=False):
 
 ##### turboSij #####
 def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_Class=None):
-    """
-    Routine to compute the Sij matrix with top-hat disjoint redshift window functions
+    """Routine to compute the Sij matrix with top-hat disjoint redshift window functions.
     example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
 
-    Inputs : stakes of the redshift bins (array), cosmological parameters (dictionnary as in CLASS's wrapper classy)
-    Output : Sij matrix (size: nbins x nbins)
+    Parameters
+    ----------
+    zstakes : array_like, default `default_zstakes`
+        Stakes of the redshift bins (nz,)
+    cosmo_params : dict, default `default_cosmo_params`
+    cosmo_Class : classy.Class object , default None
+
+    Returns
+    -------
+    array_like
+        Sij matrix (nz,nz)
     """
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
@@ -1338,4 +1736,7 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_C
 
     return Sij
 
+if __name__ == "__main__":
+    print("test")
+	
 # End of PySSC.py
