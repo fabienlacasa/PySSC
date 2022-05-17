@@ -39,6 +39,12 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
+
     sky : str, default ``'full'``
         Choice of survey geometry, given as a case-insensitive string.
         Valid choices: \n
@@ -250,6 +256,12 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
+
     cosmo_params : dict, default `default_cosmo_params`
         Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
 
@@ -388,6 +400,12 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
 
     windows : array_like
        2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     cosmo_params : dict, default `default_cosmo_params`
        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
@@ -712,6 +730,12 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, cosmo_params=defau
 
     windows : array_like
        2d array for the collection of kernels, shape (nbins, nz).
+
+    order : int, default 2
+        The passed kernels will be multiplied to that power, e.g. if two the kernels will be squared.
+        You should normally set it to one and feed the product of kernels that you want.
+        Examples: for cluster counts, set to one and feed the redshift selection functions. For cross-spectra Cl(i,j), set to one and feed the products Wi(z)*Wj(z) for all pairs of bins (i,j).
+        The default is two for backward compatibility to times where the function was intended only for auto-spectra, so kernels needed to be squared internally. That default may change in future.
 
     cosmo_params : dict, default `default_cosmo_params`
        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
