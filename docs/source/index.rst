@@ -21,6 +21,4 @@ Documentation content
     angpow
     bibliography
     API
-    .. nbgallery::
-        Original-Examples.ipynb
-        Examples.ipynb
+    examples-gallery

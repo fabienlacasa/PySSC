@@ -16,7 +16,7 @@ Base articles
 
 - Original: `Lacasa & Grain 2018 <https://ui.adsabs.harvard.edu/abs/2019A%26A...624A..61L>`_ [1]_, `arXiv:1809.05437 <https://arxiv.org/abs/1809.05437>`_
 
-- Partial sky implementation and documentation: `Gouyou Beauchamps et al. <https://ui.adsabs.harvard.edu/abs/2021arXiv210902308G>`_ [2]_, `arXiv:2109.02308 <https://arxiv.org/abs/2109.02308>`_
+- Partial sky implementation and documentation: `Gouyou Beauchamps et al. 2022 <https://ui.adsabs.harvard.edu/abs/2022A%2526A...659A.128G>`_ [2]_, `arXiv:2109.02308 <https://arxiv.org/abs/2109.02308>`_
 
 Cosmology dependencies
 ----------------------
@@ -58,19 +58,21 @@ Bibtex entries
    .. [2]
    .. code-block::
     
-    @ARTICLE{GouyouBeauchamps2021,
+    @ARTICLE{GouyouBeauchamps2022,
         author = {{Gouyou Beauchamps}, S. and {Lacasa}, F. and {Tutusaus}, I. and {Aubert}, M. and {Baratta}, P. and {Gorce}, A. and {Sakr}, Z.},
         title = "{Impact of survey geometry and super-sample covariance on future photometric galaxy surveys}",
-        journal = {arXiv e-prints},
-        keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics},
-        year = 2021,
-        month = sep,
-        eid = {arXiv:2109.02308},
-        pages = {arXiv:2109.02308},
+        journal = {\aap},
+        keywords = {large-scale structure of Universe, Astrophysics - Cosmology and Nongalactic Astrophysics},
+        year = 2022,
+        month = mar,
+        volume = {659},
+        eid = {A128},
+        pages = {A128},
+        doi = {10.1051/0004-6361/202142052},
         archivePrefix = {arXiv},
         eprint = {2109.02308},
         primaryClass = {astro-ph.CO},
-        adsurl = {https://ui.adsabs.harvard.edu/abs/2021arXiv210902308G},
+        adsurl = {https://ui.adsabs.harvard.edu/abs/2022A&A...659A.128G},
         adsnote = {Provided by the SAO/NASA Astrophysics Data System}
     }
     
