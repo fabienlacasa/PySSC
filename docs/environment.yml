@@ -5,6 +5,7 @@ channels:
 dependencies:
   - sphinx==4.3.0
   - nbsphinx==0.8.1 
+  - pip>=22.1
   - pip:
     - sphinx_rtd_theme==1.0.0
     - sphinx-gallery
