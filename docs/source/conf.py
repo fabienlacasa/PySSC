@@ -41,8 +41,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'nbsphinx',
-    'sphinx_gallery.load_style',
-]
+    'sphinx_gallery.load_style']
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
