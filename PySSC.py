@@ -850,9 +850,9 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            if isinstance(mask,str):
+            if isinstance(mask2,str):
                 map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
-            elif isinstance(mask,np.ndarray):
+            elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
@@ -1231,9 +1231,9 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            if isinstance(mask,str):
+            if isinstance(mask2,str):
                 map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
-            elif isinstance(mask,np.ndarray):
+            elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
@@ -1497,9 +1497,9 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            if isinstance(mask,str):
+            if isinstance(mask2,str):
                 map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
-            elif isinstance(mask,np.ndarray):
+            elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
@@ -1654,9 +1654,15 @@ def test_mask(mask, clmask, mask2=None):
         assert isinstance(clmask,str) or isinstance(clmask,np.ndarray), 'Clmask needs to be either a filename or a numpy array'
     if mask2 is not None:
         import healpy as hp
-        map_mask  = hp.read_map(str(mask), dtype=np.float64, verbose=False)
+        if isinstance(mask,str):
+                map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+        elif isinstance(mask,np.ndarray):
+                map_mask = mask
         nside     = hp.pixelfunc.get_nside(map_mask)
-        map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+        if isinstance(mask2,str):
+                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+        elif isinstance(mask2,np.ndarray):
+                map_mask2 = mask2
         nside2    = hp.pixelfunc.get_nside(map_mask2)
         assert nside==nside2, 'The resolutions (nside) of both masks need to be the same.'
 
