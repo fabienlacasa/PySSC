@@ -77,18 +77,18 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
     precision : int, default 10
         Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
 
-    clmask : str, default None
-        Path to fits file containing the angular power spectrum of the mask.
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
         Only implemented if `sky` is set to psky.
 
-    mask : str, default None
-        Path to fits file containing the mask in healpix form.
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to psky
 
-    mask2 : str, default None
-        Path to fits file containing a potential second mask in healpix form.
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
         PySSC will use healpy to compute the mask power spectrum.
         Again, it is faster to directly give clmask if you have it.
@@ -202,18 +202,18 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
     precision : int, default 10
         Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
 
-    clmask : str, default None
-        Path to fits file containing the angular power spectrum of the mask.
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
         Only implemented if `sky` is set to psky.
 
-    mask : str, default None
-        Path to fits file containing the mask in healpix form.
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to 'psky'.
 
-    mask2 : str, default None
-        Path to fits file containing a potential second mask in healpix form.
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
         PySSC will use healpy to compute the mask power spectrum.
         Again, it is faster to directly give clmask if you have it.
@@ -770,18 +770,18 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
         Integer which drives the number of Fourier wavenumbers in internal integrals.
         Nk = 2**precision.
 
-    clmask : str, default None
-        Path to fits file containing the angular power spectrum of the mask.
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
         Only implemented if `sky` is set to psky.
 
-    mask : str, default None
-        Path to fits file containing the mask in healpix form.
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to psky
 
-    mask2 : str, default None
-        Path to fits file containing a potential second mask in healpix form.
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
         PySSC will use healpy to compute the mask power spectrum.
         Again, it is faster to directly give clmask if you have it.
@@ -831,20 +831,29 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
 
     if mask is None: # User gives Cl(mask)
         if verbose:
-            print('Using Cls given as a fits file')
-        cl_mask = hp.fitsfunc.read_cl(str(clmask))
+            print('Using given Cls')
+        if isinstance(clmask,str):
+            cl_mask = hp.fitsfunc.read_cl(str(clmask))
+        elif isinstance(clmask,np.ndarray):
+            cl_mask = clmask
         ell = np.arange(len(cl_mask))
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')    
-        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
+            print('Using given mask map')
+        if isinstance(mask,str):
+            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+        elif isinstance(mask,np.ndarray):
+            map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+            if isinstance(mask,str):
+                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+            elif isinstance(mask,np.ndarray):
+                map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
     
@@ -1120,18 +1129,18 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
-    clmask : str, default None
-        Path to fits file containing the angular power spectrum of the mask.
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
         Only implemented if `sky` is set to psky.
 
-    mask : str, default None
-        Path to fits file containing the mask in healpix form.
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
         Only implemented if `sky` is set to 'psky'.
     
-    mask2 : str, default None
-        Path to fits file containing a potential second mask in healpix form.
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
         PySSC will use healpy to compute the mask power spectrum.
         Again, it is faster to directly give clmask if you have it.
@@ -1203,20 +1212,29 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
 
     if mask is None: # User gives Cl(mask)
         if verbose:
-            print('Using Cls given as a fits file')
-        cl_mask = hp.fitsfunc.read_cl(str(clmask))
+            print('Using given Cls')
+        if isinstance(clmask,str):
+            cl_mask = hp.fitsfunc.read_cl(str(clmask))
+        elif isinstance(clmask,np.ndarray):
+            cl_mask = clmask
         ell = np.arange(len(cl_mask))
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')    
-        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
+            print('Using given mask map')
+        if isinstance(mask,str):
+            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+        elif isinstance(mask,np.ndarray):
+            map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+            if isinstance(mask,str):
+                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+            elif isinstance(mask,np.ndarray):
+                map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
         
@@ -1379,16 +1397,16 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     windows : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
-    clmask : str, default None
-        Path to fits file containing the angular power spectrum of the mask.
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
 
-    mask : str, default None
-        Path to fits file containing the mask in healpix form.
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
         In that case PySSC will use healpy to compute the mask power spectrum.
         Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
 
-    mask2 : str, default None
-        Path to fits file containing a potential second mask in healpix form.
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
         PySSC will use healpy to compute the mask power spectrum.
         Again, it is faster to directly give clmask if you have it.
@@ -1457,22 +1475,32 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
     # Read or compute the mask angular power spectrum    
+
     if mask is None: # User gives Cl(mask)
         if verbose:
-            print('Using Cls given as a fits file')
-        cl_mask = hp.fitsfunc.read_cl(str(clmask))
+            print('Using given Cls')
+        if isinstance(clmask,str):
+            cl_mask = hp.fitsfunc.read_cl(str(clmask))
+        elif isinstance(clmask,np.ndarray):
+            cl_mask = clmask
         ell = np.arange(len(cl_mask))
         lmaxofcl = ell.max()
     else : # User gives mask as a map
         if verbose:
-            print('Using mask map, given as a fits file')    
-        map_mask = hp.read_map(str(mask), dtype=np.float64, verbose=False)
+            print('Using given mask map')
+        if isinstance(mask,str):
+            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+        elif isinstance(mask,np.ndarray):
+            map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
         lmaxofcl = 2*nside
         if mask2 is None:
             map_mask2 = copy.copy(map_mask)
         else:
-            map_mask2 = hp.read_map(str(mask2), dtype=np.float64, verbose=False)
+            if isinstance(mask,str):
+                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+            elif isinstance(mask,np.ndarray):
+                map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
         ell      = np.arange(lmaxofcl+1)
 
@@ -1620,6 +1648,10 @@ def test_mask(mask, clmask, mask2=None):
     Assert that either the mask or its Cl has been provided. If two masks are provided, check that they have the same resolution.
     """
     assert (mask is not None) or (clmask is not None), 'You need to provide either the mask or its angular power spectrum Cl.'
+    if mask is not None:
+        assert isinstance(mask,str) or isinstance(mask,np.ndarray), 'mask needs to be either a filename or a numpy array'
+    if clmask is not None:
+        assert isinstance(clmask,str) or isinstance(clmask,np.ndarray), 'Clmask needs to be either a filename or a numpy array'
     if mask2 is not None:
         import healpy as hp
         map_mask  = hp.read_map(str(mask), dtype=np.float64, verbose=False)
