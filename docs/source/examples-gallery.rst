@@ -8,6 +8,6 @@ The Python notebooks linked below give examples of use of PySSC
 - Advanced-Examples : feed own cosmology or survey masks
 
 .. nbgallery::
-    Original-Examples.ipynb
-    Main-Examples.ipynb
-    Advanced-Examples.ipynb
+    notebooks/Original-Examples.ipynb
+    notebooks/Main-Examples.ipynb
+    notebooks/Advanced-Examples.ipynb
