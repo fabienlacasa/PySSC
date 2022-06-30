@@ -26,15 +26,16 @@ Optional requirements
 Installing
 ----------
 Clone the repository
+
    .. code-block::
     
     git clone --recurse-submodules https://github.com/fabienlacasa/PySSC.git
     
-Note that the --recurse-submodules argument also install the `AngPow <https://gitlab.in2p3.fr/campagne/AngPow>`_. submodule
+| Note that the --recurse-submodules argument also installs the `AngPow <https://gitlab.in2p3.fr/campagne/AngPow>`_ submodule
+| Then either put the path to PySSC.py in your $PYTHONPATH, or install the package with pip
 
-Then either put the PySSC.py in your Python path, or install the package with pip
    .. code-block::
-
+    
     pip install -e .
-
-Note that the pip method does not (yet) work for routines using AngPow
+    
+Note that the pip method does not (yet) work for routines using AngPow.

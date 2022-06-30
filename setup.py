@@ -20,5 +20,7 @@ setup(
     description='A Python implementation of the fast Sij approach to Super-Sample Covariance (SSC). You can find the full documentation at https://pyssc.readthedocs.io',
     install_requires=['numpy', 'scipy', 'classy'],
     long_description=long_description,
-    configuration=configuration)
+    configuration=configuration,
+    licence='GPLv3'
+    )
 
