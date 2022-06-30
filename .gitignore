@@ -1,3 +1,4 @@
 test.ipynb
 test-checkpoint.ipynb
 __pycache__
+*.egg-info
