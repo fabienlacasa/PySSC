@@ -96,7 +96,7 @@ def Sij(z_arr, kernels, order=2, sky='full', method='classic', cosmo_params=defa
         If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
         
     multimask [To be implemented] : list of dictionnaries, default None
-        list where each element is a dictionnary of the form {mask:'mask.fits', kernels:kernels_array}.
+        list where each element is a dictionnary of the form {'mask':'mask.fits', 'kernels':kernels_array}.
         That is, it gives an observable and the corresponding mask.
         To be used to compute the SSC of different observables with different sky coverage.
         If multimask is set, it overrides mask and mask2.
@@ -333,11 +333,9 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
     which is a constant so does not matter in the ratio here.
     """
     
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -352,13 +350,13 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
     dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle dV/dz in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
     
     if convention==0:
         dX_dz = dV_dz
@@ -371,7 +369,7 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
         integrand = dX_dz * kernels[i1,:]**order
-        Inorm[i1] = integrate.simps(integrand,zz)
+        Inorm[i1] = integrate.simps(integrand,z_arr)
     
     # Compute U(i,k), numerator of Sij (integral of kernels**2 * matter )
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
@@ -391,7 +389,7 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
         for ik in range(nk):
             kr            = kk[ik]*comov_dist
             integrand     = dX_dz * kernels[ibin,:]**order * growth * np.sin(kr)/kr
-            Uarr[ibin,ik] = integrate.simps(integrand,zz)
+            Uarr[ibin,ik] = integrate.simps(integrand,z_arr)
     
     # Compute Sij finally
     Cl_zero     = np.zeros((nbins,nbins))
@@ -473,11 +471,9 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     which is a constant so does not matter in the ratio here.
     """
 
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -492,13 +488,13 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
     dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
     if convention==0:
         dX_dz = dV_dz
@@ -549,7 +545,7 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
         integrand = dX_dz * kernels[i1,:]**order
-        Inorm[i1] = integrate.simps(integrand,zz)
+        Inorm[i1] = integrate.simps(integrand,z_arr)
     
     
     # Compute Sij finally
@@ -559,7 +555,7 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     for i1 in range(nbins):
         for i2 in range(i1,nbins):
             integrand  = prefactor * (kernels[i1,:]**order * kernels[i2,:,None]**order)
-            Sij[i1,i2] = integrate.simps(integrate.simps(integrand,zz),zz)/(Inorm[i1]*Inorm[i2])
+            Sij[i1,i2] = integrate.simps(integrate.simps(integrand,z_arr),z_arr)/(Inorm[i1]*Inorm[i2])
     #Fill by symmetry   
     for i1 in range(nbins):
         for i2 in range(nbins):
@@ -618,11 +614,9 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
     :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
     """
 
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -637,13 +631,13 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
     dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
     if convention==0:
         dX_dz = dV_dz
@@ -669,7 +663,7 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
         integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
-        integral           = integrate.simps(integrand,zz)
+        integral           = integrate.simps(integrand,z_arr)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
         Inorm2D[jbin,ibin] = integral
@@ -705,7 +699,7 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
             for ik in range(nk):
                 kr             = kk[ik]*comov_dist
                 integrand      = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * np.sin(kr)/kr
-                Uarr[ipair,ik] = integrate.simps(integrand,zz)
+                Uarr[ipair,ik] = integrate.simps(integrand,z_arr)
             
     # Compute Sijkl finally
     Cl_zero     = np.zeros((nbins,nbins,nbins,nbins))
@@ -828,11 +822,9 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     from scipy.special import spherical_jn as jn
     from astropy.io import fits
 
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -890,13 +882,13 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
     dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
     if convention==0:
         dX_dz = dV_dz
@@ -909,7 +901,7 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
         integrand = dX_dz * kernels[i1,:]**order 
-        Inorm[i1] = integrate.simps(integrand,zz)
+        Inorm[i1] = integrate.simps(integrand,z_arr)
 
 
     #Full sky computation for debugging
@@ -931,7 +923,7 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
             for ik in range(nk):
                 kr            = kk[ik]*comov_dist
                 integrand     = dX_dz * kernels[ibin,:]**order * growth * np.sin(kr)/kr
-                Uarr[ibin,ik] = integrate.simps(integrand,zz)
+                Uarr[ibin,ik] = integrate.simps(integrand,z_arr)
         Cl_zero     = np.zeros((nbins,nbins))
         #For i<=j
         for ibin in range(nbins):
@@ -969,7 +961,7 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
             bessel_jl = jn(ll,kr)
             for ibin in range(nbins):
                 integrand        = dX_dz * kernels[ibin,:]**order * growth * bessel_jl
-                Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
+                Uarr[ibin,ik,ll] = integrate.simps(integrand,z_arr)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/I_\mathrm{norm}(i) U(j;kk,ell)/I_\mathrm{norm}(j)
     Cl_XY      = np.zeros((nbins,nbins,nell))
@@ -1047,11 +1039,9 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     from scipy.special import spherical_jn as jn
     from scipy.special import jv as Jn
 
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
 
     theta = theta*np.pi/180. #converts in radians
 
@@ -1068,7 +1058,7 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
@@ -1092,19 +1082,19 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     k_arr = np.sqrt(kperp_arr[:,None]**2+kpar_arr[None,:]**2)
     # growth      = np.zeros(nz)                              #Growth factor
     # for iz in range(nbins):
-    #     growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+    #     growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
     if verbose: print('Computing flat-sky approximation')
     Sij = np.zeros((nbins,nbins))
     for ibin in range(nbins):
         z1 = zstakes[ibin]
         r1 = cosmo.z_of_r([z1])[0][0]
-        dr1 = comov_dist[kern[ibin,:]!=0].max()-comov_dist[kern[ibin,:]!=0].min() #width of function function
+        dr1 = comov_dist[kernels[ibin,:]!=0].max()-comov_dist[kernels[ibin,:]!=0].min() #width of function function
 
         for jbin in range(nbins):
             z2 = zstakes[jbin]
             r2 = cosmo.z_of_r([z2])[0][0]
-            dr2 = comov_dist[kern[jbin,:]!=0].max()-comov_dist[kern[jbin,:]!=0].min() #width of kernel
+            dr2 = comov_dist[kernels[jbin,:]!=0].max()-comov_dist[kernels[jbin,:]!=0].min() #width of kernel
 
             z12 = np.mean([zstakes[ibin],zstakes[jbin]])
 
@@ -1209,11 +1199,9 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     from scipy.special import spherical_jn as jn
     from astropy.io import fits
 
-    # Find number of redshifts and bins
-    zz    = np.asarray(z_arr)
-    kern  = np.asarray(kernels)    
-    nz    = len(zz)
-    nbins = kern.shape[0]
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -1271,13 +1259,13 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     h = cosmo.h() #for  conversions Mpc/h <-> Mpc
     
     # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(zz)
+    zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
     dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(zz[iz])
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
     if convention==0:
         dX_dz = dV_dz
@@ -1303,7 +1291,7 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
         integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
-        integral           = integrate.simps(integrand,zz)
+        integral           = integrate.simps(integrand,z_arr)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
         Inorm2D[jbin,ibin] = integral
@@ -1341,7 +1329,7 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
                     ibin = pairs[0,ipair]
                     jbin = pairs[1,ipair]
                     integrand        = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * bessel_jl
-                    Uarr[ipair,ik,ll] = integrate.simps(integrand,zz)
+                    Uarr[ipair,ik,ll] = integrate.simps(integrand,z_arr)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/I_\mathrm{norm}(i,j) U(k,l;kk,ell)/I_\mathrm{norm}(k,l)
     Cl_XY      = np.zeros((npairs,npairs,nell))
@@ -1464,6 +1452,7 @@ def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
         Sij matrix of shape (nbins, nbins).
 
     """
+
     import time
     import os
     import shutil
@@ -1472,9 +1461,6 @@ def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     test_zw(z_arr, kernels)
     test_mask(mask, clmask, mask2=mask2)
     test_inputs_angpow(cosmo_params=cosmo_params)
-    
-    zz   = np.asarray(z_arr)
-    kern = np.asarray(kernels)
     
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
@@ -1522,7 +1508,7 @@ def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     #create data to pass to MPI AngPow routine
     rdm = np.random.random()
     os.makedirs(AngPow_path + 'temporary_%s'%rdm)
-    np.savez(AngPow_path + 'temporary_%s/ini_files'%rdm, zz, kern, lmax, fsky, cl_mask, AngPow_path)
+    np.savez(AngPow_path + 'temporary_%s/ini_files'%rdm, z_arr, kernels, lmax, fsky, cl_mask, AngPow_path)
     np.save(AngPow_path + 'temporary_%s/ini_files.npy'%rdm, cosmo_params) 
     
     present_rep = os.getcwd()
@@ -1687,13 +1673,13 @@ def test_mask(mask, clmask, mask2=None):
 ##### test_multimask #####
 def test_multimask(multimask):
     """
-    Assert that multimask has the good structure: a list of dictionnaries, all of the form {mask:'mask.fits', kernels:kernels_array}.
+    Assert that multimask has the good structure: a list of dictionnaries, all of the form {'mask':'mask.fits', 'kernels':kernels_array}.
     """
     assert isinstance(multimask,list), 'multimask needs to be a list (of dictionnaries).'
     for dico in multimask:
         assert isinstance(dico,dict), 'The elements of multimask must be dictionnaries.'
-        assert mask in dico.keys(), 'The dictionnaries must contain the key "mask".'
-        assert kernels in dico.keys(), 'The dictionnaries must contain the key "kernels".'
+        assert 'mask' in dico.keys(), 'The dictionnaries must contain the key "mask".'
+        assert 'kernels' in dico.keys(), 'The dictionnaries must contain the key "kernels".'
         assert isinstance(dico.mask,str), 'The key "mask" must contain a string (pointing to a healpix fits file).'
         assert isinstance(dico.kernels,np.ndarray), 'The key "kernels" must contain a numpy array.'
 
