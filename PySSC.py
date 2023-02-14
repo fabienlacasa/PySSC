@@ -25,7 +25,7 @@ AngPow_cosmo_params['P_k_max_h/Mpc']=20
 #################################          MAIN WRAPPERS           #################################
 ####################################################################################################
 
-def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=default_cosmo_params,
+def Sij(z_arr, kernels, order=2, sky='full', method='classic', cosmo_params=default_cosmo_params,
         cosmo_Class=None, convention=0, precision=10, clmask=None, mask=None, mask2=None, 
         var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     """Wrapper routine to compute the Sij matrix.
@@ -36,7 +36,7 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     order : int, default 2
@@ -94,6 +94,12 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
         Again, it is faster to directly give clmask if you have it.
         Only implemented if `sky` is set to psky.
         If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
+        
+    multimask [To be implemented] : list of dictionnaries, default None
+        list where each element is a dictionnary of the form {mask:'mask.fits', kernels:kernels_array}.
+        That is, it gives an observable and the corresponding mask.
+        To be used to compute the SSC of different observables with different sky coverage.
+        If multimask is set, it overrides mask and mask2.
 
     var_tol : float, default 0.05
          Float that drives the target precision for the sum over angular multipoles.
@@ -137,29 +143,29 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
 
     """
 
-    test_zw(z_arr,windows)
+    test_zw(z_arr,kernels)
     
     # Full sky
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
         if method.casefold() in ['classic','standard','default','std']:
-            Sij=Sij_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
+            Sij=Sij_fullsky(z_arr, kernels, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision)
         elif method.casefold() in ['alternative','alt']:
-            Sij=Sij_alt_fullsky(z_arr, windows, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
+            Sij=Sij_alt_fullsky(z_arr, kernels, order=order, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention)
         elif method.casefold() in ['angpow','ap']:
             test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
-            Sij=Sij_AngPow_fullsky(z_arr, windows, cosmo_params=cosmo_params, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
+            Sij=Sij_AngPow_fullsky(z_arr, kernels, cosmo_params=cosmo_params, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
     # Partial sky
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
         test_mask(mask, clmask, mask2=mask2)
         if method.casefold() in ['classic','standard','default']:
-            Sij=Sij_psky(z_arr, windows, order=order, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
+            Sij=Sij_psky(z_arr, kernels, order=order, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, var_tol=var_tol, verbose=verbose, debug=debug)
         elif method.casefold() in ['alt','alternative']:
             raise Exception('No implementation of the alternative method for partial sky. Use classic instead.')
         elif method.casefold() in ['angpow','ap']:
             test_inputs_angpow(cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, order=order, convention=convention, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path)
-            Sij=Sij_AngPow(z_arr, windows, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
+            Sij=Sij_AngPow(z_arr, kernels, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, var_tol=var_tol, machinefile=machinefile, Nn=Nn, Np=Np, AngPow_path=AngPow_path, verbose=verbose, debug=debug)
         else:
             raise Exception('Invalid string given for method parameter. Main possibilities: classic, alternative or AngPow (or variants, see code for details).')
     # Wrong geometry
@@ -168,7 +174,7 @@ def Sij(z_arr, windows, order=2, sky='full', method='classic', cosmo_params=defa
 
     return Sij
 
-def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
+def Sijkl(z_arr, kernels, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
           clmask=None, mask=None, mask2=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
     """ Wrapper routine to compute the Sijkl matrix.
     It calls different routines depending on the inputs : full sky or partial sky methods.
@@ -178,7 +184,7 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     sky : str, default ``'full'``
@@ -245,13 +251,13 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 
     """
 
-    test_zw(z_arr,windows)
+    test_zw(z_arr,kernels)
     
     if sky.casefold() in ['full','fullsky','full sky','full-sky']:
-        Sijkl=Sijkl_fullsky(z_arr, windows, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
+        Sijkl=Sijkl_fullsky(z_arr, kernels, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
     elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
         test_mask(mask, clmask, mask2=mask2)
-        Sijkl=Sijkl_psky(z_arr, windows, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
+        Sijkl=Sijkl_psky(z_arr, kernels, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
     else:
         raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
     return Sijkl
@@ -261,7 +267,7 @@ def Sijkl(z_arr, windows, sky='full', cosmo_params=default_cosmo_params, cosmo_C
 ####################################################################################################
 
 ##### Sij_fullsky #####
-def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
+def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10):
     """ Routine to compute the Sij matrix in full sky. Standard computation method.
 
     Parameters
@@ -269,7 +275,7 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     order : int, default 2
@@ -306,7 +312,7 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
 
     .. math::
         S_{ij} = \\frac{1}{2\pi^2} \int k^2 dk \ P(k)  \\frac{U(i,k)}{I_\mathrm{norm}(i)} \\frac{U(j,k)}{I_\mathrm{norm}(j)}
-    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^2` and :math:`U(i,k) = \int dX \ W(i,z)^2 \ G(z) \ j_0(kr)`.
+    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^\mathrm{order}` and :math:`U(i,k) = \int dX \ W(i,z)^\mathrm{order} \ G(z) \ j_0(kr)`.
     
     This can also be seen as an angular power spectrum:
 
@@ -328,10 +334,10 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     """
     
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -364,10 +370,10 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**order
+        integrand = dX_dz * kernels[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
-    # Compute U(i,k), numerator of Sij (integral of Window**2 * matter )
+    # Compute U(i,k), numerator of Sij (integral of kernels**2 * matter )
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth #1e-4
@@ -384,7 +390,7 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     for ibin in range(nbins):
         for ik in range(nk):
             kr            = kk[ik]*comov_dist
-            integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
+            integrand     = dX_dz * kernels[ibin,:]**order * growth * np.sin(kr)/kr
             Uarr[ibin,ik] = integrate.simps(integrand,zz)
     
     # Compute Sij finally
@@ -406,7 +412,7 @@ def Sij_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosm
     return Sij
 
 ##### Sij_alt_fullsky #####
-def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
+def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0):
     """Alternative routine to compute the Sij matrix in full sky.
 
     Parameters
@@ -414,7 +420,7 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     z_arr : array_like
        Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
        2d array for the collection of kernels, shape (nbins, nz).
 
     order : int, default 2
@@ -447,9 +453,9 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     Equation used
 
     .. math::
-        S_{ij} = \int dX_1 \, dX_2 \\frac{W(i,z_1)^2}{I_\mathrm{norm}(i)} \\frac{W(j,z_2)^2}{I_\mathrm{norm}(j)} \ \sigma^2(z_1,z_2)
+        S_{ij} = \int dX_1 \, dX_2 \\frac{W(i,z_1)^\mathrm{order}}{I_\mathrm{norm}(i)} \\frac{W(j,z_2)^\mathrm{order}}{I_\mathrm{norm}(j)} \ \sigma^2(z_1,z_2)
 
-    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^2` and \
+    with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^\mathrm{order}` and \
     :math:`\sigma^2(z_1,z_2) = \\frac{1}{2\pi^2} \int k^2 dk \ P(k|z_1,z_2) \ j_0(kr_1) j_0(kr_2)`.
     The latter can be rewritten as \
     :math:`\sigma^2(z_1,z_2) = \\frac{1}{2 \pi^2 r_1 r_2} G(z_1) G(z_2) \int dk \ P(k,z=0) \left[\cos\left(k(r_1-r_2)\\right)-\cos\left(k(r_1+r_2)\\right)\\right]/2` \
@@ -468,10 +474,10 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     """
 
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -542,7 +548,7 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**order
+        integrand = dX_dz * kernels[i1,:]**order
         Inorm[i1] = integrate.simps(integrand,zz)
     
     
@@ -552,7 +558,7 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     #For i<=j
     for i1 in range(nbins):
         for i2 in range(i1,nbins):
-            integrand  = prefactor * (windows[i1,:]**order * windows[i2,:,None]**order)
+            integrand  = prefactor * (kernels[i1,:]**order * kernels[i2,:,None]**order)
             Sij[i1,i2] = integrate.simps(integrate.simps(integrand,zz),zz)/(Inorm[i1]*Inorm[i2])
     #Fill by symmetry   
     for i1 in range(nbins):
@@ -562,7 +568,7 @@ def Sij_alt_fullsky(z_arr, windows, order=2, cosmo_params=default_cosmo_params, 
     return Sij
 
 ##### Sijkl_fullsky #####
-def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
+def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
     """Routine to compute the Sijkl matrix in full sky.
 
     Parameters
@@ -570,7 +576,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
     z_arr : array_like
        Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
        2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
@@ -613,10 +619,10 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
     """
 
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
     
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
@@ -662,7 +668,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
     for ipair in range(npairs):
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
-        integrand          = dX_dz * windows[ibin,:]* windows[jbin,:]
+        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
         integral           = integrate.simps(integrand,zz)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
@@ -698,7 +704,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
             jbin = pairs[1,ipair]
             for ik in range(nk):
                 kr             = kk[ik]*comov_dist
-                integrand      = dX_dz * windows[ibin,:] * windows[jbin,:] * growth * np.sin(kr)/kr
+                integrand      = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * np.sin(kr)/kr
                 Uarr[ipair,ik] = integrate.simps(integrand,zz)
             
     # Compute Sijkl finally
@@ -736,7 +742,7 @@ def Sijkl_fullsky(z_arr, windows, cosmo_params=default_cosmo_params, cosmo_Class
 ####################################################################################################
 
 ##### Sij_psky #####
-def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
+def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multimask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
     """Routine to compute the Sijkl matrix in partial sky.
 
     Parameters
@@ -744,7 +750,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
     z_arr : array_like
        Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
        2d array for the collection of kernels, shape (nbins, nz).
 
     order : int, default 2
@@ -772,20 +778,19 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
 
     clmask : str or numpy.ndarray, default None
         Array or path to fits file containing the angular power spectrum of the mask.
-        Only implemented if `sky` is set to psky.
+        To be used when the observable(s) have a single mask.
 
     mask : str or numpy.ndarray, default None
         Array or path to fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum.
-        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-        Only implemented if `sky` is set to psky
+        PySSC will use healpy to compute the mask power spectrum.
+        It is faster to directly give clmask if you have it (particularly when calling PySSC several times).
+        To be used when the observable(s) have a single mask.
 
     mask2 : str or numpy.ndarray, default None
         Array or path to fits file containing a potential second mask in healpix form.
         In the case where you want the covariance between observables measured on different areas of the sky.
-        PySSC will use healpy to compute the mask power spectrum.
+        PySSC will use healpy to compute the mask cross-spectrum.
         Again, it is faster to directly give clmask if you have it.
-        Only implemented if `sky` is set to psky.
         If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
 
     var_tol : float, default 0.05
@@ -815,8 +820,8 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
 
     where \
     :math:`C_S(\ell,i,j) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(i;k,\ell)}{I_\mathrm{norm}(i)} \\frac{U(j;k,\ell)}{I_\mathrm{norm}(j)}` \n
-    with :math:`I_\mathrm{norm}(i) = \int  dX \  W(i,z)^2`
-    and  :math:`U(i;k,\ell) = \int dX \  W(i,z)^2 \ G(z) \ j_\ell(k r)`
+    with :math:`I_\mathrm{norm}(i) = \int  dX \  W(i,z)^\mathrm{order}`
+    and  :math:`U(i;k,\ell) = \int dX \  W(i,z)^\mathrm{order} \ G(z) \ j_\ell(k r)`
     """
 
     import healpy as hp
@@ -824,10 +829,10 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
     from astropy.io import fits
 
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -842,7 +847,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
         if verbose:
             print('Using given mask map')
         if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+            map_mask = hp.read_map(mask, dtype=np.float64)
         elif isinstance(mask,np.ndarray):
             map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
@@ -851,7 +856,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
             map_mask2 = copy.copy(map_mask)
         else:
             if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+                map_mask2 = hp.read_map(mask2, dtype=np.float64)
             elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
@@ -903,7 +908,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
     # Compute normalisations
     Inorm       = np.zeros(nbins)
     for i1 in range(nbins):
-        integrand = dX_dz * windows[i1,:]**order 
+        integrand = dX_dz * kernels[i1,:]**order 
         Inorm[i1] = integrate.simps(integrand,zz)
 
 
@@ -925,7 +930,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
         for ibin in range(nbins):
             for ik in range(nk):
                 kr            = kk[ik]*comov_dist
-                integrand     = dX_dz * windows[ibin,:]**order * growth * np.sin(kr)/kr
+                integrand     = dX_dz * kernels[ibin,:]**order * growth * np.sin(kr)/kr
                 Uarr[ibin,ik] = integrate.simps(integrand,zz)
         Cl_zero     = np.zeros((nbins,nbins))
         #For i<=j
@@ -942,7 +947,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
                 Cl_zero[ibin,jbin] = Cl_zero[min(ibin,jbin),max(ibin,jbin)]
 
     
-    # Compute U(i;k,ell) = int dX window(i,z)^2 growth(z) j_ell(kk*r)
+    # Compute U(i;k,ell) = int dX kernels(i,z)^order growth(z) j_ell(kk*r)
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -963,7 +968,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
         for ll in ell:
             bessel_jl = jn(ll,kr)
             for ibin in range(nbins):
-                integrand        = dX_dz * windows[ibin,:]**order * growth * bessel_jl
+                integrand        = dX_dz * kernels[ibin,:]**order * growth * bessel_jl
                 Uarr[ibin,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i;kk,ell)/I_\mathrm{norm}(i) U(j;kk,ell)/I_\mathrm{norm}(j)
@@ -1004,7 +1009,7 @@ def Sij_psky(z_arr, windows, order=2, clmask=None, mask=None, mask2=None, cosmo_
     return Sij
 
 ##### Sij_flatsky #####
-def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_params, cosmo_Class=None, verbose=False):
+def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_params, cosmo_Class=None, verbose=False):
     """Routine to compute Sij according to the flat-sky approximation
     See Eq. 16 of arXiv:1612.05958
 
@@ -1012,7 +1017,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
     ----------
     z_arr : array_like
         Redshift array of size nz (must be >0)
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins,nz)
     bin_centres : array_like
         Central values of redshift bins. Dimensions: (nbins,)
@@ -1043,10 +1048,10 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
     from scipy.special import jv as Jn
 
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
 
     theta = theta*np.pi/180. #converts in radians
 
@@ -1094,12 +1099,12 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
     for ibin in range(nbins):
         z1 = zstakes[ibin]
         r1 = cosmo.z_of_r([z1])[0][0]
-        dr1 = comov_dist[win[ibin,:]!=0].max()-comov_dist[win[ibin,:]!=0].min() #width of function function
+        dr1 = comov_dist[kern[ibin,:]!=0].max()-comov_dist[kern[ibin,:]!=0].min() #width of function function
 
         for jbin in range(nbins):
             z2 = zstakes[jbin]
             r2 = cosmo.z_of_r([z2])[0][0]
-            dr2 = comov_dist[win[jbin,:]!=0].max()-comov_dist[win[jbin,:]!=0].min() #width of window function
+            dr2 = comov_dist[kern[jbin,:]!=0].max()-comov_dist[kern[jbin,:]!=0].min() #width of kernel
 
             z12 = np.mean([zstakes[ibin],zstakes[jbin]])
 
@@ -1117,7 +1122,7 @@ def Sij_flatsky(z_arr, windows, bin_centres, theta, cosmo_params=default_cosmo_p
 
     
 ##### Sijkl_psky #####
-def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
+def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
                convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
     """Routine to compute the Sijkl matrix in partial sky.
 
@@ -1126,7 +1131,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     clmask : str or numpy.ndarray, default None
@@ -1205,10 +1210,10 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     from astropy.io import fits
 
     # Find number of redshifts and bins
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)    
+    zz    = np.asarray(z_arr)
+    kern  = np.asarray(kernels)    
     nz    = len(zz)
-    nbins = win.shape[0]
+    nbins = kern.shape[0]
 
     if mask is None: # User gives Cl(mask)
         if verbose:
@@ -1223,7 +1228,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         if verbose:
             print('Using given mask map')
         if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+            map_mask = hp.read_map(mask, dtype=np.float64)
         elif isinstance(mask,np.ndarray):
             map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
@@ -1232,7 +1237,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
             map_mask2 = copy.copy(map_mask)
         else:
             if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+                map_mask2 = hp.read_map(mask2, dtype=np.float64)
             elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
@@ -1291,13 +1296,13 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
             pairs[1,count] = jbin
             count +=1
         
-    # Compute normalisations I_\mathrm{norm}(i,j) = int dX window(i,z) window(j,z)
+    # Compute normalisations I_\mathrm{norm}(i,j) = int dX kernels(i,z) kernels(j,z)
     Inorm       = np.zeros(npairs)
     Inorm2D     = np.zeros((nbins,nbins))
     for ipair in range(npairs):
         ibin               = pairs[0,ipair]
         jbin               = pairs[1,ipair]
-        integrand          = dX_dz * windows[ibin,:]* windows[jbin,:]
+        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
         integral           = integrate.simps(integrand,zz)
         Inorm[ipair]       = integral
         Inorm2D[ibin,jbin] = integral
@@ -1313,7 +1318,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         if ratio<tol:
             flag[ipair]=1
     
-    # Compute U(i,j;kk,ell) = int dX window(i,z) window(j,z) growth(z) j_ell(kk*r)  
+    # Compute U(i,j;kk,ell) = int dX kernels(i,z) kernels(j,z) growth(z) j_ell(kk*r)  
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
     kmin        = min(keq,1./comov_dist.max())/klogwidth
@@ -1335,7 +1340,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
                 if flag[ipair]==0:
                     ibin = pairs[0,ipair]
                     jbin = pairs[1,ipair]
-                    integrand        = dX_dz * windows[ibin,:] * windows[jbin,:] * growth * bessel_jl
+                    integrand        = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * bessel_jl
                     Uarr[ipair,ik,ll] = integrate.simps(integrand,zz)
 
     # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/I_\mathrm{norm}(i,j) U(k,l;kk,ell)/I_\mathrm{norm}(k,l)
@@ -1386,7 +1391,7 @@ def Sijkl_psky(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
 ####################################################################################################
 
 ##### Sij_AngPow #####
-def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=AngPow_cosmo_params, var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
+def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=AngPow_cosmo_params, var_tol=0.05, machinefile=None, Nn=None, Np='default', AngPow_path=None, verbose=False, debug=False):
     """Routine to compute the Sij matrix in partial sky using AngPow.
 
     Parameters
@@ -1394,7 +1399,7 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     clmask : str or numpy.ndarray, default None
@@ -1464,12 +1469,12 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     import shutil
     import healpy as hp
     
-    test_zw(z_arr, windows)
+    test_zw(z_arr, kernels)
     test_mask(mask, clmask, mask2=mask2)
     test_inputs_angpow(cosmo_params=cosmo_params)
     
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)
+    zz   = np.asarray(z_arr)
+    kern = np.asarray(kernels)
     
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
@@ -1489,7 +1494,7 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
         if verbose:
             print('Using given mask map')
         if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+            map_mask = hp.read_map(mask, dtype=np.float64)
         elif isinstance(mask,np.ndarray):
             map_mask = mask
         nside    = hp.pixelfunc.get_nside(map_mask)
@@ -1498,7 +1503,7 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
             map_mask2 = copy.copy(map_mask)
         else:
             if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+                map_mask2 = hp.read_map(mask2, dtype=np.float64)
             elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
@@ -1511,14 +1516,13 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
 
     # Search of the best lmax for all later sums on ell
     lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
-
     if verbose:
         print('lmax = %i' %(lmax))
         
     #create data to pass to MPI AngPow routine
     rdm = np.random.random()
     os.makedirs(AngPow_path + 'temporary_%s'%rdm)
-    np.savez(AngPow_path + 'temporary_%s/ini_files'%rdm, zz, win, lmax, fsky, cl_mask, AngPow_path)
+    np.savez(AngPow_path + 'temporary_%s/ini_files'%rdm, zz, kern, lmax, fsky, cl_mask, AngPow_path)
     np.save(AngPow_path + 'temporary_%s/ini_files.npy'%rdm, cosmo_params) 
     
     present_rep = os.getcwd()
@@ -1537,7 +1541,7 @@ def Sij_AngPow(z_arr, windows, clmask=None, mask=None, mask2=None, cosmo_params=
     return Sij
 
 ##### Sij_AngPow_fullsky #####
-def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
+def Sij_AngPow_fullsky(z_arr,kernels,cosmo_params=AngPow_cosmo_params,machinefile=None,Nn=None,Np='default',AngPow_path=None,verbose=False,debug=False):
     """Routine to compute the Sij matrix in full sky using AngPow.
 
     Parameters
@@ -1545,7 +1549,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
     z_arr : array_like
         Input array of redshifts of size nz.
 
-    windows : array_like
+    kernels : array_like
         2d array for the collection of kernels, shape (nbins, nz).
 
     cosmo_params : dict, default `default_cosmo_params`
@@ -1598,7 +1602,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
     import os
     import shutil
     
-    test_zw(z_arr, windows)
+    test_zw(z_arr, kernels)
 
     if AngPow_path is not None:
         assert os.path.exists(AngPow_path + 'bin/angpow') , 'the angpow executable is not in the provided AngPow_path, please update the path or make sure the angpow compilation has been correctly done'
@@ -1617,7 +1621,7 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
     hp.fitsfunc.write_cl(tmp_file,Cl_fullsky)
 
     # Call Sij_AngPow with that Cl file
-    Sij = Sij_AngPow(z_arr,windows,clmask=tmp_file,cosmo_params=cosmo_params,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
+    Sij = Sij_AngPow(z_arr,kernels,clmask=tmp_file,cosmo_params=cosmo_params,machinefile=machinefile,Nn=Nn,Np='default',AngPow_path=AngPow_path,verbose=verbose,debug=debug)
 
     # Remove the temporary folder
     shutil.rmtree(AngPow_path + 'temporary_%s'%rdm, ignore_errors=True)
@@ -1629,18 +1633,32 @@ def Sij_AngPow_fullsky(z_arr,windows,cosmo_params=AngPow_cosmo_params,machinefil
 #################################        AUXILIARY ROUTINES        #################################
 ####################################################################################################
 
+#################### TEST INPUTS ####################
+
 ##### test_zw #####
-def test_zw(z_arr, windows):
+def test_z(z_arr):
     """
-    Assert redshift and windows arrays have the good type and shape
+    Assert redshift array has the good type, shape and values.
     """
-    zz  = np.asarray(z_arr)
-    win = np.asarray(windows)
-    assert zz.ndim==1, 'z_arr must be a 1-dimensional array'
-    assert win.ndim==2, 'windows must be a 2-dimensional array'    
-    nz    = len(zz)
-    assert win.shape[1]==nz, 'windows must have shape (nbins,nz)'
-    assert zz.min()>0, 'z_arr must have values > 0'
+    assert isinstance(z_arr,np.ndarray), 'z_arr must be a numpy array.'
+    assert z_arr.ndim==1, 'z_arr must be a 1-dimensional array.'    
+    assert z_arr.min()>0, 'z_arr must have values > 0.'
+
+def test_w(kernels, nz):
+    """
+    Assert kernels array has the good type and shape.
+    """
+    assert isinstance(kernels,np.ndarray), 'kernels must be a numpy array.'
+    assert kernels.ndim==2, 'kernels must be a 2-dimensional array.'    
+    assert kernels.shape[1] == nz, 'kernels must have shape (nbins,nz).'
+
+def test_zw(z_arr, kernels):
+    """
+    Assert redshift and kernels arrays have the good type, shape and values.
+    """
+    test_z(z_arr)
+    nz = len(z_arr)
+    test_w(kernels, nz)
 
 ##### test_mask #####
 def test_mask(mask, clmask, mask2=None):
@@ -1655,16 +1673,29 @@ def test_mask(mask, clmask, mask2=None):
     if mask2 is not None:
         import healpy as hp
         if isinstance(mask,str):
-                map_mask = hp.read_map(mask, dtype=np.float64, verbose=False)
+                map_mask = hp.read_map(mask, dtype=np.float64)
         elif isinstance(mask,np.ndarray):
                 map_mask = mask
         nside     = hp.pixelfunc.get_nside(map_mask)
         if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64, verbose=False)
+                map_mask2 = hp.read_map(mask2, dtype=np.float64)
         elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
         nside2    = hp.pixelfunc.get_nside(map_mask2)
         assert nside==nside2, 'The resolutions (nside) of both masks need to be the same.'
+
+##### test_multimask #####
+def test_multimask(multimask):
+    """
+    Assert that multimask has the good structure: a list of dictionnaries, all of the form {mask:'mask.fits', kernels:kernels_array}.
+    """
+    assert isinstance(multimask,list), 'multimask needs to be a list (of dictionnaries).'
+    for dico in multimask:
+        assert isinstance(dico,dict), 'The elements of multimask must be dictionnaries.'
+        assert mask in dico.keys(), 'The dictionnaries must contain the key "mask".'
+        assert kernels in dico.keys(), 'The dictionnaries must contain the key "kernels".'
+        assert isinstance(dico.mask,str), 'The key "mask" must contain a string (pointing to a healpix fits file).'
+        assert isinstance(dico.kernels,np.ndarray), 'The key "kernels" must contain a numpy array.'
 
 ##### test_inputs_angpow #####
 def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order=2, convention=0, machinefile=None, Nn=None, Np='default', AngPow_path=None):
@@ -1695,6 +1726,7 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order
     if Np != 'default':
         assert int(Np) == Np , 'the number of process per node Np must be integer'
 
+#################### COMPUTE STUFF ####################
 
 ##### find_lmax #####
 def find_lmax(ell, cl_mask, var_tol, debug=False):
@@ -1747,7 +1779,7 @@ def find_lmax(ell, cl_mask, var_tol, debug=False):
 
 ##### turboSij #####
 def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_Class=None):
-    """Routine to compute the Sij matrix with top-hat disjoint redshift window functions.
+    """Routine to compute the Sij matrix with top-hat disjoint redshift kernels.
     example : galaxy clustering with perfect/spectroscopic redshift determinations so that bins are sharp.
 
     Parameters
