@@ -337,27 +337,9 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
     nz    = z_arr.size
     nbins = kernels.shape[0]
     
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-    
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle dV/dz in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
-    
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+
     if convention==0:
         dX_dz = dV_dz
     elif convention==1:
@@ -475,26 +457,8 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     nz    = z_arr.size
     nbins = kernels.shape[0]
     
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
     if convention==0:
         dX_dz = dV_dz
@@ -618,26 +582,8 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
     nz    = z_arr.size
     nbins = kernels.shape[0]
     
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
     if convention==0:
         dX_dz = dV_dz
@@ -869,26 +815,8 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     nell    = lmax+1
     ell     = np.arange(nell) #0..lmax
 
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
     if convention==0:
         dX_dz = dV_dz
@@ -1045,21 +973,8 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
 
     theta = theta*np.pi/180. #converts in radians
 
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
     
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
@@ -1246,26 +1161,8 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     nell    = lmax+1
     ell     = np.arange(nell) #0..lmax
 
-    # If the cosmology is not provided (in the same form as CLASS), run CLASS
-    if cosmo_Class is None:
-        cosmo = Class()
-        dico_for_CLASS = cosmo_params
-        dico_for_CLASS['output'] = 'mPk'
-        cosmo.set(dico_for_CLASS)
-        cosmo.compute()
-    else:
-        cosmo = cosmo_Class
-
-    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
-    
-    # Define arrays of r(z), k, P(k)...
-    zofr        = cosmo.z_of_r(z_arr)
-    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
-    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle in Mpc^3/sr
-    growth      = np.zeros(nz)                              #Growth factor
-    for iz in range(nz):
-        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
     if convention==0:
         dX_dz = dV_dz
@@ -1714,15 +1611,54 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order
 
 #################### COMPUTE STUFF ####################
 
+##### get_cosmo #####
+def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
+    """Routine to run CLASS if needed, then compute arrays of comoving distance, volume etc necessary for Sij routines.
+
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    Returns
+    -------
+    tuple
+        cosmo, h, comov_dist, dcomov_dist, dV_dz, growth
+    """
+
+    nz = z_arr.size
+
+    # If the cosmology is not provided (in the same form as CLASS), run CLASS
+    if cosmo_Class is None:
+        cosmo = Class()
+        dico_for_CLASS = cosmo_params
+        dico_for_CLASS['output'] = 'mPk'
+        cosmo.set(dico_for_CLASS)
+        cosmo.compute()
+    else:
+        cosmo = cosmo_Class
+    
+    h = cosmo.h() #for  conversions Mpc/h <-> Mpc
+    
+    # Define arrays of r(z), k, P(k)...
+    zofr        = cosmo.z_of_r(z_arr)
+    comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
+    dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
+    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle dV/dz in Mpc^3/sr
+    growth      = np.zeros(nz)                              #Growth factor
+    for iz in range(nz):
+        growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
+
+    return cosmo, h, comov_dist, dcomov_dist, dV_dz, growth
+
 ##### find_lmax #####
 def find_lmax(ell, cl_mask, var_tol, debug=False):
-    # """
-    # Routine to search the best lmax for all later sums on multipoles
-    # Inputs :
-    #   - ell : full vectors of multipoles. As large as possible
-    #   - cl_mask : power spectrum of the mask at the supplied multipoles
-    # Method: smallest lmax so that we have convergence of the variance var = sum_ell (2*ell+1)/4pi * Clmask
-    # """
     """Routine to search the best lmax for all later sums on multipoles.
 
     Computes the smallest lmax so that we reach convergence of the variance
