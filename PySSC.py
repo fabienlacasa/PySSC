@@ -7,10 +7,10 @@
 
 import math ; pi=math.pi
 import numpy as np
+import warnings
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
 import copy
-from classy import Class
 
 ##################################################
 
@@ -22,7 +22,7 @@ AngPow_cosmo_params['z_max_pk']=0
 AngPow_cosmo_params['P_k_max_h/Mpc']=20
 
 ####################################################################################################
-#################################          MAIN WRAPPERS           #################################
+#################################           MAIN WRAPPER           #################################
 ####################################################################################################
 
 def Sij(z_arr, kernels, order=2, sky='full', method='classic', cosmo_params=default_cosmo_params,
@@ -172,94 +172,6 @@ def Sij(z_arr, kernels, order=2, sky='full', method='classic', cosmo_params=defa
         raise Exception('Invalid string given for sky geometry parameter. Main possibilities : full sky or partial sky (or abbreviations, see code for details).')
 
     return Sij
-
-def Sijkl(z_arr, kernels, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
-          clmask=None, mask=None, mask2=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
-    """ Wrapper routine to compute the Sijkl matrix.
-    It calls different routines depending on the inputs : full sky or partial sky methods.
-
-    Parameters
-    ----------
-    z_arr : array_like
-        Input array of redshifts of size nz.
-
-    kernels : array_like
-        2d array for the collection of kernels, shape (nbins, nz).
-
-    sky : str, default ``'full'``
-        Choice of survey geometry, given as a case-insensitive string.
-        Valid choices: \n
-        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
-        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
-
-    cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
-
-    cosmo_Class : classy.Class object, default None
-        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-
-    convention : int, default 0
-        Integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019.
-        1 = Cosmosic , Euclid Forecasts.
-        Defaults to 0.
-
-    precision : int, default 10
-        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
-
-    clmask : str or numpy.ndarray, default None
-        Array or path to fits file containing the angular power spectrum of the mask.
-        Only implemented if `sky` is set to psky.
-
-    mask : str or numpy.ndarray, default None
-        Array or path to fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum.
-        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-        Only implemented if `sky` is set to 'psky'.
-
-    mask2 : str or numpy.ndarray, default None
-        Array or path to fits file containing a potential second mask in healpix form.
-        In the case where you want the covariance between observables measured on different areas of the sky.
-        PySSC will use healpy to compute the mask power spectrum.
-        Again, it is faster to directly give clmask if you have it.
-        Only implemented if `sky` is set to psky.
-        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
-
-    var_tol : float, default 0.05
-         Float that drives the target precision for the sum over angular multipoles.
-         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-         Only implemented if `sky`  is set to psky.
-
-    tol : float, default 1e-3
-        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
-        overlap between the kernels rendering the computation unreliable.
-
-    verbose : bool, default False
-        Verbosity of the routine.
-        Defaults to False
-
-    debug : bool, default False
-        Debuging options to look for incoherence in the routine.
-        Defaults to False.
-
-    Returns
-    -------
-
-    Array_like
-        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
-
-    """
-
-    test_zw(z_arr,kernels)
-    
-    if sky.casefold() in ['full','fullsky','full sky','full-sky']:
-        Sijkl=Sijkl_fullsky(z_arr, kernels, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
-    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
-        test_mask(mask, clmask, mask2=mask2)
-        Sijkl=Sijkl_psky(z_arr, kernels, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
-    else:
-        raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
-    return Sijkl
 
 ####################################################################################################
 #################################        FULL SKY ROUTINES         #################################
@@ -518,159 +430,13 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     
     return Sij
 
-##### Sijkl_fullsky #####
-def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
-    """Routine to compute the Sijkl matrix in full sky.
-
-    Parameters
-    ----------
-    z_arr : array_like
-       Input array of redshifts of size nz.
-
-    kernels : array_like
-       2d array for the collection of kernels, shape (nbins, nz).
-
-    cosmo_params : dict, default `default_cosmo_params`
-       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
-
-    cosmo_Class : classy.Class object, default None
-       classy.Class object containing precomputed cosmology.
-       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-
-    convention : int, default 0
-       Integer to dictate the convention used in the definition of the kernels.
-       0 = Lacasa & Grain 2019.
-       1 = Cosmosic , Euclid Forecasts
-       Defaults to 0.
-
-    precision : int, default 10
-        Integer which drives the number of Fourier wavenumbers in internal integrals.
-        Nk = 2**precision.
-
-    tol : float, default 1e-3
-        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
-        overlap between the kernels rendering the computation unreliable.
-
-    Returns
-    -------
-    array_like
-        Sijkl matrix, shape (nbins,nbins,nbins,nbins).
-
-    Notes
-    -----
-    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
-
-    .. math::
-        S_{\\alpha \\beta \gamma \delta}=\\frac{1}{2\pi^2} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta ; k,\ell=0)}{I_\mathrm{norm}(\\alpha,\\beta)}
-                  \\frac{U(\gamma,\delta;k,\ell=0)}{I_\mathrm{norm}(\gamma,\delta)}
-
-    with: \n
-    :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
-    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
-    """
-
-    # Find number of redshifts and bins    
-    nz    = z_arr.size
-    nbins = kernels.shape[0]
-    
-    #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
-
-    #Get element of z integration, depending on kernel convention
-    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
-
-    #Index pairs of bins
-    npairs      = (nbins*(nbins+1))//2
-    pairs       = np.zeros((2,npairs),dtype=int)
-    count       = 0
-    for ibin in range(nbins):
-        for jbin in range(ibin,nbins):
-            pairs[0,count] = ibin
-            pairs[1,count] = jbin
-            count +=1
-        
-    # Compute normalisations
-    Inorm       = np.zeros(npairs)
-    Inorm2D     = np.zeros((nbins,nbins))
-    for ipair in range(npairs):
-        ibin               = pairs[0,ipair]
-        jbin               = pairs[1,ipair]
-        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
-        integral           = integrate.simps(integrand,z_arr)
-        Inorm[ipair]       = integral
-        Inorm2D[ibin,jbin] = integral
-        Inorm2D[jbin,ibin] = integral
-    #Flag pairs with too small overlap as unreliable
-    #Note: this will also speed up later computations
-    #Default tolerance : tol=1e-3
-    flag        = np.zeros(npairs,dtype=int)
-    for ipair in range(npairs):
-        ibin               = pairs[0,ipair]
-        jbin               = pairs[1,ipair]
-        ratio              = abs(Inorm2D[ibin,jbin])/np.sqrt(abs(Inorm2D[ibin,ibin]*Inorm2D[jbin,jbin]))
-        if ratio<tol:
-            flag[ipair]=1
-    
-    # Compute U(i,j;kk)
-    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
-    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
-    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
-    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
-    logk        = np.linspace(logkmin,logkmax,num=nk)
-    kk          = np.exp(logk)                                     #logarithmic grid on k    
-    Pk          = np.zeros(nk)
-    for ik in range(nk):
-        Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
-    Uarr        = np.zeros((npairs,nk))
-    for ipair in range(npairs):
-        if flag[ipair]==0:
-            ibin = pairs[0,ipair]
-            jbin = pairs[1,ipair]
-            for ik in range(nk):
-                kr             = kk[ik]*comov_dist
-                integrand      = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * np.sin(kr)/kr
-                Uarr[ipair,ik] = integrate.simps(integrand,z_arr)
-            
-    # Compute Sijkl finally
-    Cl_zero     = np.zeros((nbins,nbins,nbins,nbins))
-    #For ipair<=jpair
-    for ipair in range(npairs):
-        if flag[ipair]==0:
-            U1 = Uarr[ipair,:]/Inorm[ipair]
-            ibin = pairs[0,ipair]
-            jbin = pairs[1,ipair]
-            for jpair in range(ipair,npairs):
-                if flag[jpair]==0:
-                    U2 = Uarr[jpair,:]/Inorm[jpair]
-                    kbin = pairs[0,jpair]
-                    lbin = pairs[1,jpair]
-                    integrand = kk**2 * Pk * U1 * U2
-                    #integral = 2/(i * integrate.simps(integrand,kk)     #linear integration
-                    integral = 2/pi * integrate.simps(integrand*kk,logk) #log integration
-                    #Run through all valid symmetries to fill the 4D array
-                    #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
-                    Cl_zero[ibin,jbin,kbin,lbin] = integral
-                    Cl_zero[ibin,jbin,lbin,kbin] = integral
-                    Cl_zero[jbin,ibin,kbin,lbin] = integral
-                    Cl_zero[jbin,ibin,lbin,kbin] = integral
-                    Cl_zero[kbin,lbin,ibin,jbin] = integral
-                    Cl_zero[kbin,lbin,jbin,ibin] = integral
-                    Cl_zero[lbin,kbin,ibin,jbin] = integral
-                    Cl_zero[lbin,kbin,jbin,ibin] = integral
-    Sijkl = Cl_zero / (4*pi)       
-    
-    return Sijkl
-
 ####################################################################################################
 #################################       PARTIAL SKY ROUTINES       #################################
 ####################################################################################################
 
 ##### Sij_psky #####
 def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multimask=None, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, var_tol=0.05, verbose=False, debug=False):
-    """Routine to compute the Sijkl matrix in partial sky.
+    """Routine to compute the Sij matrix in partial sky.
 
     Parameters
     ----------
@@ -977,214 +743,6 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     return Sij
 
     
-##### Sijkl_psky #####
-def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
-               convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
-    """Routine to compute the Sijkl matrix in partial sky.
-
-    Parameters
-    ----------
-    z_arr : array_like
-        Input array of redshifts of size nz.
-
-    kernels : array_like
-        2d array for the collection of kernels, shape (nbins, nz).
-
-    clmask : str or numpy.ndarray, default None
-        Array or path to fits file containing the angular power spectrum of the mask.
-        Only implemented if `sky` is set to psky.
-
-    mask : str or numpy.ndarray, default None
-        Array or path to fits file containing the mask in healpix form.
-        In that case PySSC will use healpy to compute the mask power spectrum.
-        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
-        Only implemented if `sky` is set to 'psky'.
-    
-    mask2 : str or numpy.ndarray, default None
-        Array or path to fits file containing a potential second mask in healpix form.
-        In the case where you want the covariance between observables measured on different areas of the sky.
-        PySSC will use healpy to compute the mask power spectrum.
-        Again, it is faster to directly give clmask if you have it.
-        Only implemented if `sky` is set to psky.
-        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
-
-    cosmo_params : dict, default `default_cosmo_params`
-        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
-
-    cosmo_Class : classy.Class object, default None
-        classy.Class object containing precomputed cosmology, \
-        if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
-
-    convention : int, default 0
-        Integer to dictate the convention used in the definition of the kernels.
-        0 = Lacasa & Grain 2019.
-        1 = Cosmosic , Euclid Forecasts
-        Defaults to 0.
-
-    precision : int, default 10
-        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
-
-    var_tol : float, default 0.05
-         Float that drives the target precision for the sum over angular multipoles.
-         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
-         Only implemented if `sky`  is set to psky.
-
-    tol : float, default 1e-3
-        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
-        overlap between the kernels rendering the computation unreliable.
-
-    verbose : bool, default False
-        Verbosity of the routine.
-        Defaults to False
-
-    debug : bool, default False
-        Debuging options to look for incoherence in the routine.
-        Defaults to False.
-
-    Returns
-    -------
-
-    Array_like
-        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
-
-    Notes
-    -----
-
-    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
-
-    .. math::
-        S_{\\alpha \\beta \gamma \delta} = \\frac{1}{(4\pi f_{\mathrm{sky}})^2} \sum_\ell (2\ell+1) \ C(\ell,\mathrm{mask}) \ C_S(\ell,\\alpha,\\beta,\gamma,\delta) 
-
-    where \
-    :math:`C(\ell,\\alpha,\\beta,\gamma,\delta) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta;k,\ell)}{I_\mathrm{norm}(\\alpha,\\beta)} \\frac{U(\gamma,\delta;k,\ell)}{I_\mathrm{norm}(\gamma,\delta)}`
-    with :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
-    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
-    """
-
-    from scipy.special import spherical_jn as jn
-
-    # Find number of redshifts and bins    
-    nz    = z_arr.size
-    nbins = kernels.shape[0]
-
-    # compute Cl(mask) and fsky computed from user input (mask(s) or clmask)
-    ell, cl_mask, fsky = get_mask_quantities(clmask=clmask,mask=mask,mask2=mask2,verbose=verbose)
-
-    # Search of the best lmax for all later sums on ell
-    lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
-    if verbose:
-        print('lmax = %i' %(lmax))
-
-    # Cut ell and Cl_mask to lmax, for all later computations
-    cl_mask = cl_mask[:(lmax+1)]
-    nell    = lmax+1
-    ell     = np.arange(nell) #0..lmax
-
-    #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
-
-    #Get element of z integration, depending on kernel convention
-    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
-
-    #Index pairs of bins
-    npairs      = (nbins*(nbins+1))//2
-    pairs       = np.zeros((2,npairs),dtype=int)
-    count       = 0
-    for ibin in range(nbins):
-        for jbin in range(ibin,nbins):
-            pairs[0,count] = ibin
-            pairs[1,count] = jbin
-            count +=1
-        
-    # Compute normalisations I_\mathrm{norm}(i,j) = int dX kernels(i,z) kernels(j,z)
-    Inorm       = np.zeros(npairs)
-    Inorm2D     = np.zeros((nbins,nbins))
-    for ipair in range(npairs):
-        ibin               = pairs[0,ipair]
-        jbin               = pairs[1,ipair]
-        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
-        integral           = integrate.simps(integrand,z_arr)
-        Inorm[ipair]       = integral
-        Inorm2D[ibin,jbin] = integral
-        Inorm2D[jbin,ibin] = integral
-    #Flag pairs with too small overlap as unreliable
-    #Note: this will also speed up later computations
-    #Default tolerance : tol=1e-3
-    flag        = np.zeros(npairs,dtype=int)
-    for ipair in range(npairs):
-        ibin               = pairs[0,ipair]
-        jbin               = pairs[1,ipair]
-        ratio              = abs(Inorm2D[ibin,jbin])/np.sqrt(abs(Inorm2D[ibin,ibin]*Inorm2D[jbin,jbin]))
-        if ratio<tol:
-            flag[ipair]=1
-    
-    # Compute U(i,j;kk,ell) = int dX kernels(i,z) kernels(j,z) growth(z) j_ell(kk*r)  
-    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
-    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
-    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
-    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
-    logk        = np.linspace(logkmin,logkmax,num=nk)
-    kk          = np.exp(logk)                                     #logarithmic grid on k    
-    Pk          = np.zeros(nk)
-    for ik in range(nk):
-        Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
-    Uarr        = np.zeros((npairs,nk,nell))
-    for ik in range(nk):
-        kr            = kk[ik]*comov_dist
-        for ll in ell:
-            bessel_jl = jn(ll,kr)
-            for ipair in range(npairs):
-                if flag[ipair]==0:
-                    ibin = pairs[0,ipair]
-                    jbin = pairs[1,ipair]
-                    integrand        = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * bessel_jl
-                    Uarr[ipair,ik,ll] = integrate.simps(integrand,z_arr)
-
-    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/I_\mathrm{norm}(i,j) U(k,l;kk,ell)/I_\mathrm{norm}(k,l)
-    Cl_XY      = np.zeros((npairs,npairs,nell))
-    for ll in ell:
-        #For ipair<=jpair
-        for ipair in range(npairs):
-            if flag[ipair]==0:
-                U1 = Uarr[ipair,:,ll]/Inorm[ipair]
-                for jpair in range(ipair,npairs):
-                    if flag[jpair]==0:
-                        U2 = Uarr[jpair,:,ll]/Inorm[jpair]
-                        integrand = kk**2 * Pk * U1 * U2
-                        #Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand,kk)     #linear integration
-                        Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
-        #Fill by symmetry   
-        for ipair in range(npairs):
-            for jpair in range(npairs):
-                Cl_XY[ipair,jpair,ll] = Cl_XY[min(ipair,jpair),max(ipair,jpair),ll]
-
-    # Finally sum over ell to get Sijkl = sum_ell (2ell+1) C(ell;i,j;k;l) C(ell,mask) /(4pi*fsky)^2
-    Sijkl   = np.zeros((nbins,nbins,nbins,nbins))
-    #For ipair<=jpair
-    for ipair in range(npairs):
-        if flag[ipair]==0:
-            ibin = pairs[0,ipair]
-            jbin = pairs[1,ipair]
-            for jpair in range(ipair,npairs):
-                if flag[jpair]==0:
-                    kbin = pairs[0,jpair]
-                    lbin = pairs[1,jpair]
-                    sum_ell = np.sum((2*ell+1)*cl_mask*Cl_XY[ipair,jpair,:])/(4*pi*fsky)**2
-                    #Run through all valid symmetries to fill the 4D array
-                    #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
-                    Sijkl[ibin,jbin,kbin,lbin] = sum_ell
-                    Sijkl[ibin,jbin,lbin,kbin] = sum_ell
-                    Sijkl[jbin,ibin,kbin,lbin] = sum_ell
-                    Sijkl[jbin,ibin,lbin,kbin] = sum_ell
-                    Sijkl[kbin,lbin,ibin,jbin] = sum_ell
-                    Sijkl[kbin,lbin,jbin,ibin] = sum_ell
-                    Sijkl[lbin,kbin,ibin,jbin] = sum_ell
-                    Sijkl[lbin,kbin,jbin,ibin] = sum_ell
-    
-    return Sijkl
 
 ####################################################################################################
 #################################          ANGPOW ROUTINES         #################################
@@ -1514,6 +1072,8 @@ def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
         cosmo, h, comov_dist, dcomov_dist, growth
     """
 
+    from classy import Class
+
     nz = z_arr.size
 
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
@@ -1695,6 +1255,8 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_C
         Sij matrix (nz,nz)
     """
     
+    from classy import Class
+
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
         cosmo = Class()
@@ -1790,6 +1352,468 @@ def turboSij(zstakes=default_zstakes, cosmo_params=default_cosmo_params, cosmo_C
             Sij[j1,j2] = pref1 * pref2 * Fsum/(4*pi**2)
 
     return Sij
+
+
+####################################################################################################
+#################################           DEPRECATED ROUTINES           ##########################
+####################################################################################################   
+
+##### Sijkl wrapper #####
+def Sijkl(z_arr, kernels, sky='full', cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10,
+          clmask=None, mask=None, mask2=None, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
+    """[DEPRECATED] Wrapper routine to compute the Sijkl matrix.
+    It calls different routines depending on the inputs : full sky or partial sky methods.
+
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
+
+    kernels : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    sky : str, default ``'full'``
+        Choice of survey geometry, given as a case-insensitive string.
+        Valid choices: \n
+        (i) ``'full'``/``'fullsky'``/``'full sky'``/``'full-sky'``,
+        (ii) ``'psky'``/``'partial sky'``/``'partial-sky'``/``'partial'``/``'masked'``.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosic , Euclid Forecasts.
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to 'psky'.
+
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    Array_like
+        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
+
+    """
+
+    #Raise deprecation warning
+    warnings.warn("The Sijkl functions are now deprecated. Please move to using Sij by feeding the kernel products, see the documentation at https://pyssc.readthedocs.io/en/latest/notebooks/Main-Examples.html#General-case-with-cross-spectra", DeprecationWarning, stacklevel=2)
+
+    test_zw(z_arr,kernels)
+    
+    if sky.casefold() in ['full','fullsky','full sky','full-sky']:
+        Sijkl=Sijkl_fullsky(z_arr, kernels, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol)
+    elif sky.casefold() in ['psky','partial sky','partial-sky','partial','masked']:
+        test_mask(mask, clmask, mask2=mask2)
+        Sijkl=Sijkl_psky(z_arr, kernels, clmask=clmask, mask=mask, mask2=mask2, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class, convention=convention, precision=precision, tol=tol, var_tol=var_tol, verbose=verbose, debug=debug)
+    else:
+        raise Exception('Invalid string given for sky geometry parameter. Must be either of : full, fullsky, full sky, full-sky.')
+    return Sijkl
+
+##### Sijkl_fullsky #####
+def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class=None, convention=0, precision=10, tol=1e-3):
+    """[DEPRECATED] Routine to compute the Sijkl matrix in full sky.
+
+    Parameters
+    ----------
+    z_arr : array_like
+       Input array of redshifts of size nz.
+
+    kernels : array_like
+       2d array for the collection of kernels, shape (nbins, nz).
+
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+       Integer to dictate the convention used in the definition of the kernels.
+       0 = Lacasa & Grain 2019.
+       1 = Cosmosic , Euclid Forecasts
+       Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals.
+        Nk = 2**precision.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    Returns
+    -------
+    array_like
+        Sijkl matrix, shape (nbins,nbins,nbins,nbins).
+
+    Notes
+    -----
+    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
+
+    .. math::
+        S_{\\alpha \\beta \gamma \delta}=\\frac{1}{2\pi^2} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta ; k,\ell=0)}{I_\mathrm{norm}(\\alpha,\\beta)}
+                  \\frac{U(\gamma,\delta;k,\ell=0)}{I_\mathrm{norm}(\gamma,\delta)}
+
+    with: \n
+    :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
+    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
+    """
+
+    #Raise deprecation warning
+    warnings.warn("The Sijkl functions are now deprecated. Please move to using Sij by feeding the kernel products, see the documentation at https://pyssc.readthedocs.io/en/latest/notebooks/Main-Examples.html#General-case-with-cross-spectra", DeprecationWarning, stacklevel=2)
+
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
+    
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
+
+    #Index pairs of bins
+    npairs      = (nbins*(nbins+1))//2
+    pairs       = np.zeros((2,npairs),dtype=int)
+    count       = 0
+    for ibin in range(nbins):
+        for jbin in range(ibin,nbins):
+            pairs[0,count] = ibin
+            pairs[1,count] = jbin
+            count +=1
+        
+    # Compute normalisations
+    Inorm       = np.zeros(npairs)
+    Inorm2D     = np.zeros((nbins,nbins))
+    for ipair in range(npairs):
+        ibin               = pairs[0,ipair]
+        jbin               = pairs[1,ipair]
+        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
+        integral           = integrate.simps(integrand,z_arr)
+        Inorm[ipair]       = integral
+        Inorm2D[ibin,jbin] = integral
+        Inorm2D[jbin,ibin] = integral
+    #Flag pairs with too small overlap as unreliable
+    #Note: this will also speed up later computations
+    #Default tolerance : tol=1e-3
+    flag        = np.zeros(npairs,dtype=int)
+    for ipair in range(npairs):
+        ibin               = pairs[0,ipair]
+        jbin               = pairs[1,ipair]
+        ratio              = abs(Inorm2D[ibin,jbin])/np.sqrt(abs(Inorm2D[ibin,ibin]*Inorm2D[jbin,jbin]))
+        if ratio<tol:
+            flag[ipair]=1
+    
+    # Compute U(i,j;kk)
+    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
+    kmin        = min(keq,1./comov_dist.max())/klogwidth
+    kmax        = max(keq,1./comov_dist.min())*klogwidth
+    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
+    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
+    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
+    logk        = np.linspace(logkmin,logkmax,num=nk)
+    kk          = np.exp(logk)                                     #logarithmic grid on k    
+    Pk          = np.zeros(nk)
+    for ik in range(nk):
+        Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
+    Uarr        = np.zeros((npairs,nk))
+    for ipair in range(npairs):
+        if flag[ipair]==0:
+            ibin = pairs[0,ipair]
+            jbin = pairs[1,ipair]
+            for ik in range(nk):
+                kr             = kk[ik]*comov_dist
+                integrand      = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * np.sin(kr)/kr
+                Uarr[ipair,ik] = integrate.simps(integrand,z_arr)
+            
+    # Compute Sijkl finally
+    Cl_zero     = np.zeros((nbins,nbins,nbins,nbins))
+    #For ipair<=jpair
+    for ipair in range(npairs):
+        if flag[ipair]==0:
+            U1 = Uarr[ipair,:]/Inorm[ipair]
+            ibin = pairs[0,ipair]
+            jbin = pairs[1,ipair]
+            for jpair in range(ipair,npairs):
+                if flag[jpair]==0:
+                    U2 = Uarr[jpair,:]/Inorm[jpair]
+                    kbin = pairs[0,jpair]
+                    lbin = pairs[1,jpair]
+                    integrand = kk**2 * Pk * U1 * U2
+                    #integral = 2/(i * integrate.simps(integrand,kk)     #linear integration
+                    integral = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+                    #Run through all valid symmetries to fill the 4D array
+                    #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
+                    Cl_zero[ibin,jbin,kbin,lbin] = integral
+                    Cl_zero[ibin,jbin,lbin,kbin] = integral
+                    Cl_zero[jbin,ibin,kbin,lbin] = integral
+                    Cl_zero[jbin,ibin,lbin,kbin] = integral
+                    Cl_zero[kbin,lbin,ibin,jbin] = integral
+                    Cl_zero[kbin,lbin,jbin,ibin] = integral
+                    Cl_zero[lbin,kbin,ibin,jbin] = integral
+                    Cl_zero[lbin,kbin,jbin,ibin] = integral
+    Sijkl = Cl_zero / (4*pi)       
+    
+    return Sijkl
+
+##### Sijkl_psky #####
+def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=default_cosmo_params, cosmo_Class=None,
+               convention=0, precision=10, var_tol=0.05, tol=1e-3, verbose=False, debug=False):
+    """[DEPRECATED] Routine to compute the Sijkl matrix in partial sky.
+
+    Parameters
+    ----------
+    z_arr : array_like
+        Input array of redshifts of size nz.
+
+    kernels : array_like
+        2d array for the collection of kernels, shape (nbins, nz).
+
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
+        Only implemented if `sky` is set to psky.
+
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
+        In that case PySSC will use healpy to compute the mask power spectrum.
+        Thus it is faster to directly give clmask if you have it (or if you compute several Sij matrices for some reason).
+        Only implemented if `sky` is set to 'psky'.
+    
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask power spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        Only implemented if `sky` is set to psky.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
+
+    cosmo_params : dict, default `default_cosmo_params`
+        Dictionary of cosmology or cosmological parameters that can be accepted by `classy``
+
+    cosmo_Class : classy.Class object, default None
+        classy.Class object containing precomputed cosmology, \
+        if you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosic , Euclid Forecasts
+        Defaults to 0.
+
+    precision : int, default 10
+        Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
+
+    var_tol : float, default 0.05
+         Float that drives the target precision for the sum over angular multipoles.
+         Default is 5%. Lowering it means increasing the number of multipoles thus increasing computational time.
+         Only implemented if `sky`  is set to psky.
+
+    tol : float, default 1e-3
+        Tolerance value telling PySSC to cut off (i.e. set Sijkl=0) the matrix elements where there is too small
+        overlap between the kernels rendering the computation unreliable.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+        Defaults to False
+
+    debug : bool, default False
+        Debuging options to look for incoherence in the routine.
+        Defaults to False.
+
+    Returns
+    -------
+
+    Array_like
+        Sijkl matrix of shape (nbins,nbins,nbins,nbins).
+
+    Notes
+    -----
+
+    Equation used (using indices :math:`(\\alpha,\\beta,\gamma,\delta)` instead of :math:`(i,j,k,l)` to avoid confusion with the Fourier wavevector and multipole):
+
+    .. math::
+        S_{\\alpha \\beta \gamma \delta} = \\frac{1}{(4\pi f_{\mathrm{sky}})^2} \sum_\ell (2\ell+1) \ C(\ell,\mathrm{mask}) \ C_S(\ell,\\alpha,\\beta,\gamma,\delta) 
+
+    where \
+    :math:`C(\ell,\\alpha,\\beta,\gamma,\delta) = \\frac{2}{\pi} \int k^2 dk \ P(k) \\frac{U(\\alpha,\\beta;k,\ell)}{I_\mathrm{norm}(\\alpha,\\beta)} \\frac{U(\gamma,\delta;k,\ell)}{I_\mathrm{norm}(\gamma,\delta)}`
+    with :math:`I_\mathrm{norm}(\\alpha,\\beta) = \int dX \ W(\\alpha,z) \ W(\\beta,z)`  and 
+    :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
+    """
+
+    #Raise deprecation warning
+    warnings.warn("The Sijkl functions are now deprecated. Please move to using Sij by feeding the kernel products, see the documentation at https://pyssc.readthedocs.io/en/latest/notebooks/Main-Examples.html#General-case-with-cross-spectra", DeprecationWarning, stacklevel=2)
+
+    from scipy.special import spherical_jn as jn
+
+    # Find number of redshifts and bins    
+    nz    = z_arr.size
+    nbins = kernels.shape[0]
+
+    # compute Cl(mask) and fsky computed from user input (mask(s) or clmask)
+    ell, cl_mask, fsky = get_mask_quantities(clmask=clmask,mask=mask,mask2=mask2,verbose=verbose)
+
+    # Search of the best lmax for all later sums on ell
+    lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
+    if verbose:
+        print('lmax = %i' %(lmax))
+
+    # Cut ell and Cl_mask to lmax, for all later computations
+    cl_mask = cl_mask[:(lmax+1)]
+    nell    = lmax+1
+    ell     = np.arange(nell) #0..lmax
+
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
+
+    #Index pairs of bins
+    npairs      = (nbins*(nbins+1))//2
+    pairs       = np.zeros((2,npairs),dtype=int)
+    count       = 0
+    for ibin in range(nbins):
+        for jbin in range(ibin,nbins):
+            pairs[0,count] = ibin
+            pairs[1,count] = jbin
+            count +=1
+        
+    # Compute normalisations I_\mathrm{norm}(i,j) = int dX kernels(i,z) kernels(j,z)
+    Inorm       = np.zeros(npairs)
+    Inorm2D     = np.zeros((nbins,nbins))
+    for ipair in range(npairs):
+        ibin               = pairs[0,ipair]
+        jbin               = pairs[1,ipair]
+        integrand          = dX_dz * kernels[ibin,:]* kernels[jbin,:]
+        integral           = integrate.simps(integrand,z_arr)
+        Inorm[ipair]       = integral
+        Inorm2D[ibin,jbin] = integral
+        Inorm2D[jbin,ibin] = integral
+    #Flag pairs with too small overlap as unreliable
+    #Note: this will also speed up later computations
+    #Default tolerance : tol=1e-3
+    flag        = np.zeros(npairs,dtype=int)
+    for ipair in range(npairs):
+        ibin               = pairs[0,ipair]
+        jbin               = pairs[1,ipair]
+        ratio              = abs(Inorm2D[ibin,jbin])/np.sqrt(abs(Inorm2D[ibin,ibin]*Inorm2D[jbin,jbin]))
+        if ratio<tol:
+            flag[ipair]=1
+    
+    # Compute U(i,j;kk,ell) = int dX kernels(i,z) kernels(j,z) growth(z) j_ell(kk*r)  
+    keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
+    kmin        = min(keq,1./comov_dist.max())/klogwidth
+    kmax        = max(keq,1./comov_dist.min())*klogwidth
+    nk          = 2**precision                                    #10 seems to be enough. Increase to test precision, reduce to speed up.
+    #kk          = np.linspace(kmin,kmax,num=nk)                   #linear grid on k
+    logkmin     = np.log(kmin) ; logkmax   = np.log(kmax)
+    logk        = np.linspace(logkmin,logkmax,num=nk)
+    kk          = np.exp(logk)                                     #logarithmic grid on k    
+    Pk          = np.zeros(nk)
+    for ik in range(nk):
+        Pk[ik]  = cosmo.pk(kk[ik],0.)                              #In Mpc^3
+    Uarr        = np.zeros((npairs,nk,nell))
+    for ik in range(nk):
+        kr            = kk[ik]*comov_dist
+        for ll in ell:
+            bessel_jl = jn(ll,kr)
+            for ipair in range(npairs):
+                if flag[ipair]==0:
+                    ibin = pairs[0,ipair]
+                    jbin = pairs[1,ipair]
+                    integrand        = dX_dz * kernels[ibin,:] * kernels[jbin,:] * growth * bessel_jl
+                    Uarr[ipair,ik,ll] = integrate.simps(integrand,z_arr)
+
+    # Compute Cl(X,Y) = 2/pi \int kk^2 dkk P(kk) U(i,j;kk,ell)/I_\mathrm{norm}(i,j) U(k,l;kk,ell)/I_\mathrm{norm}(k,l)
+    Cl_XY      = np.zeros((npairs,npairs,nell))
+    for ll in ell:
+        #For ipair<=jpair
+        for ipair in range(npairs):
+            if flag[ipair]==0:
+                U1 = Uarr[ipair,:,ll]/Inorm[ipair]
+                for jpair in range(ipair,npairs):
+                    if flag[jpair]==0:
+                        U2 = Uarr[jpair,:,ll]/Inorm[jpair]
+                        integrand = kk**2 * Pk * U1 * U2
+                        #Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand,kk)     #linear integration
+                        Cl_XY[ipair,jpair,ll] = 2/pi * integrate.simps(integrand*kk,logk) #log integration
+        #Fill by symmetry   
+        for ipair in range(npairs):
+            for jpair in range(npairs):
+                Cl_XY[ipair,jpair,ll] = Cl_XY[min(ipair,jpair),max(ipair,jpair),ll]
+
+    # Finally sum over ell to get Sijkl = sum_ell (2ell+1) C(ell;i,j;k;l) C(ell,mask) /(4pi*fsky)^2
+    Sijkl   = np.zeros((nbins,nbins,nbins,nbins))
+    #For ipair<=jpair
+    for ipair in range(npairs):
+        if flag[ipair]==0:
+            ibin = pairs[0,ipair]
+            jbin = pairs[1,ipair]
+            for jpair in range(ipair,npairs):
+                if flag[jpair]==0:
+                    kbin = pairs[0,jpair]
+                    lbin = pairs[1,jpair]
+                    sum_ell = np.sum((2*ell+1)*cl_mask*Cl_XY[ipair,jpair,:])/(4*pi*fsky)**2
+                    #Run through all valid symmetries to fill the 4D array
+                    #Symmetries: i<->j, k<->l, (i,j)<->(k,l)
+                    Sijkl[ibin,jbin,kbin,lbin] = sum_ell
+                    Sijkl[ibin,jbin,lbin,kbin] = sum_ell
+                    Sijkl[jbin,ibin,kbin,lbin] = sum_ell
+                    Sijkl[jbin,ibin,lbin,kbin] = sum_ell
+                    Sijkl[kbin,lbin,ibin,jbin] = sum_ell
+                    Sijkl[kbin,lbin,jbin,ibin] = sum_ell
+                    Sijkl[lbin,kbin,ibin,jbin] = sum_ell
+                    Sijkl[lbin,kbin,jbin,ibin] = sum_ell
+    
+    return Sijkl
+
+####################################################################################################
+#################################                   END                   ##########################
+####################################################################################################
 
 if __name__ == "__main__":
     print("test")           #To make the file executable for readthedocs compilation
