@@ -1072,12 +1072,11 @@ def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
         cosmo, h, comov_dist, dcomov_dist, growth
     """
 
-    from classy import Class
-
     nz = z_arr.size
 
     # If the cosmology is not provided (in the same form as CLASS), run CLASS
     if cosmo_Class is None:
+        from classy import Class
         cosmo = Class()
         dico_for_CLASS = cosmo_params
         dico_for_CLASS['output'] = 'mPk'
