@@ -71,8 +71,7 @@ def Sij(z_arr, kernels, order=2, sky='full', method='classic', cosmo_params=defa
     convention : int, default 0
         Integer to dictate the convention used in the definition of the kernels.
         0 = Lacasa & Grain 2019.
-        1 = Cosmosis , Euclid Forecasts.
-        Defaults to 0.
+        1 = Cosmosis, Euclid Forecasts (Blanchard et al 2020).
 
     precision : int, default 10
         Integer which drives the number of Fourier wavenumbers in internal integrals such as : Nk = 2**precision.
@@ -338,14 +337,10 @@ def Sij_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, cosm
     nbins = kernels.shape[0]
     
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
-    if convention==0:
-        dX_dz = dV_dz
-    elif convention==1:
-        dX_dz = dcomov_dist / comov_dist**2
-    else:
-        raise ValueError('convention must be either 0 or 1')
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
     
     # Compute normalisations
     Inorm       = np.zeros(nbins)
@@ -458,14 +453,10 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     nbins = kernels.shape[0]
     
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
-    if convention==0:
-        dX_dz = dV_dz
-    elif convention==1:
-        dX_dz = dcomov_dist / comov_dist**2
-    else:
-        raise ValueError('convention must be either 0 or 1')
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
     
     keq         = 0.02/h                                    #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                        #Factor of width of the integration range.
@@ -583,14 +574,10 @@ def Sijkl_fullsky(z_arr, kernels, cosmo_params=default_cosmo_params, cosmo_Class
     nbins = kernels.shape[0]
     
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
-    if convention==0:
-        dX_dz = dV_dz
-    elif convention==1:
-        dX_dz = dcomov_dist / comov_dist**2
-    else:
-        raise ValueError('convention must be either 0 or 1')
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
 
     #Index pairs of bins
     npairs      = (nbins*(nbins+1))//2
@@ -764,46 +751,14 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     and  :math:`U(i;k,\ell) = \int dX \  W(i,z)^\mathrm{order} \ G(z) \ j_\ell(k r)`
     """
 
-    import healpy as hp
     from scipy.special import spherical_jn as jn
-    from astropy.io import fits
 
     # Find number of redshifts and bins    
     nz    = z_arr.size
     nbins = kernels.shape[0]
 
-    if mask is None: # User gives Cl(mask)
-        if verbose:
-            print('Using given Cls')
-        if isinstance(clmask,str):
-            cl_mask = hp.fitsfunc.read_cl(str(clmask))
-        elif isinstance(clmask,np.ndarray):
-            cl_mask = clmask
-        ell = np.arange(len(cl_mask))
-        lmaxofcl = ell.max()
-    else : # User gives mask as a map
-        if verbose:
-            print('Using given mask map')
-        if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64)
-        elif isinstance(mask,np.ndarray):
-            map_mask = mask
-        nside    = hp.pixelfunc.get_nside(map_mask)
-        lmaxofcl = 2*nside
-        if mask2 is None:
-            map_mask2 = copy.copy(map_mask)
-        else:
-            if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64)
-            elif isinstance(mask2,np.ndarray):
-                map_mask2 = mask2
-        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
-        ell      = np.arange(lmaxofcl+1)
-    
-    # compute fsky from the mask
-    fsky = np.sqrt(cl_mask[0]/(4*pi))
-    if verbose:
-        print('f_sky = %.4f' %(fsky))
+    # compute Cl(mask) and fsky computed from user input (mask(s) or clmask)
+    ell, cl_mask, fsky = get_mask_quantities(clmask=clmask,mask=mask,mask2=mask2,verbose=verbose)
 
     # Search of the best lmax for all later sums on ell
     lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
@@ -816,14 +771,10 @@ def Sij_psky(z_arr, kernels, order=2, clmask=None, mask=None, mask2=None, multim
     ell     = np.arange(nell) #0..lmax
 
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
-    if convention==0:
-        dX_dz = dV_dz
-    elif convention==1:
-        dX_dz = dcomov_dist / comov_dist**2
-    else:
-        raise ValueError('convention must be either 0 or 1')
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
     
     # Compute normalisations
     Inorm       = np.zeros(nbins)
@@ -974,7 +925,7 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     theta = theta*np.pi/180. #converts in radians
 
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
     
     keq         = 0.02/h                                          #Equality matter radiation in 1/Mpc (more or less)
     klogwidth   = 10                                              #Factor of width of the integration range. 10 seems ok
@@ -1110,46 +1061,14 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     :math:`U(\\alpha,\\beta;k,\ell) = \int dX \ W(\\alpha,z) \ W(\\beta,z) \ G(z) \ j_\ell(k r)`.
     """
 
-    import healpy as hp
     from scipy.special import spherical_jn as jn
-    from astropy.io import fits
 
     # Find number of redshifts and bins    
     nz    = z_arr.size
     nbins = kernels.shape[0]
 
-    if mask is None: # User gives Cl(mask)
-        if verbose:
-            print('Using given Cls')
-        if isinstance(clmask,str):
-            cl_mask = hp.fitsfunc.read_cl(str(clmask))
-        elif isinstance(clmask,np.ndarray):
-            cl_mask = clmask
-        ell = np.arange(len(cl_mask))
-        lmaxofcl = ell.max()
-    else : # User gives mask as a map
-        if verbose:
-            print('Using given mask map')
-        if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64)
-        elif isinstance(mask,np.ndarray):
-            map_mask = mask
-        nside    = hp.pixelfunc.get_nside(map_mask)
-        lmaxofcl = 2*nside
-        if mask2 is None:
-            map_mask2 = copy.copy(map_mask)
-        else:
-            if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64)
-            elif isinstance(mask2,np.ndarray):
-                map_mask2 = mask2
-        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
-        ell      = np.arange(lmaxofcl+1)
-        
-    # compute fsky from the mask
-    fsky = np.sqrt(cl_mask[0]/(4*pi))
-    if verbose:
-        print('f_sky = %.4f' %(fsky))
+    # compute Cl(mask) and fsky computed from user input (mask(s) or clmask)
+    ell, cl_mask, fsky = get_mask_quantities(clmask=clmask,mask=mask,mask2=mask2,verbose=verbose)
 
     # Search of the best lmax for all later sums on ell
     lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
@@ -1162,14 +1081,10 @@ def Sijkl_psky(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     ell     = np.arange(nell) #0..lmax
 
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
-    cosmo, h, comov_dist, dcomov_dist, dV_dz, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
-    if convention==0:
-        dX_dz = dV_dz
-    elif convention==1:
-        dX_dz = dcomov_dist / comov_dist**2
-    else:
-        raise ValueError('convention must be either 0 or 1')
+    #Get element of z integration, depending on kernel convention
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
 
     #Index pairs of bins
     npairs      = (nbins*(nbins+1))//2
@@ -1353,7 +1268,6 @@ def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     import time
     import os
     import shutil
-    import healpy as hp
     
     test_zw(z_arr, kernels)
     test_mask(mask, clmask, mask2=mask2)
@@ -1362,40 +1276,8 @@ def Sij_AngPow(z_arr, kernels, clmask=None, mask=None, mask2=None, cosmo_params=
     if AngPow_path is None:
         AngPow_path = os.getcwd() + '/AngPow/' #finishing with '/' 
     
-    # Read or compute the mask angular power spectrum    
-
-    if mask is None: # User gives Cl(mask)
-        if verbose:
-            print('Using given Cls')
-        if isinstance(clmask,str):
-            cl_mask = hp.fitsfunc.read_cl(str(clmask))
-        elif isinstance(clmask,np.ndarray):
-            cl_mask = clmask
-        ell = np.arange(len(cl_mask))
-        lmaxofcl = ell.max()
-    else : # User gives mask as a map
-        if verbose:
-            print('Using given mask map')
-        if isinstance(mask,str):
-            map_mask = hp.read_map(mask, dtype=np.float64)
-        elif isinstance(mask,np.ndarray):
-            map_mask = mask
-        nside    = hp.pixelfunc.get_nside(map_mask)
-        lmaxofcl = 2*nside
-        if mask2 is None:
-            map_mask2 = copy.copy(map_mask)
-        else:
-            if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64)
-            elif isinstance(mask2,np.ndarray):
-                map_mask2 = mask2
-        cl_mask  = hp.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
-        ell      = np.arange(lmaxofcl+1)
-
-    # Compute fsky from the mask
-    fsky = np.sqrt(cl_mask[0]/(4*np.pi))
-    if verbose:
-        print('f_sky = %.4f' %(fsky))
+    # compute Cl(mask) and fsky computed from user input (mask(s) or clmask)
+    ell, cl_mask, fsky = get_mask_quantities(clmask=clmask,mask=mask,mask2=mask2,verbose=verbose)
 
     # Search of the best lmax for all later sums on ell
     lmax = find_lmax(ell,cl_mask,var_tol,debug=debug)
@@ -1554,17 +1436,17 @@ def test_mask(mask, clmask, mask2=None):
     if clmask is not None:
         assert isinstance(clmask,str) or isinstance(clmask,np.ndarray), 'Clmask needs to be either a filename or a numpy array'
     if mask2 is not None:
-        import healpy as hp
+        import healpy
         if isinstance(mask,str):
-                map_mask = hp.read_map(mask, dtype=np.float64)
+                map_mask = healpy.read_map(mask, dtype=np.float64)
         elif isinstance(mask,np.ndarray):
                 map_mask = mask
-        nside     = hp.pixelfunc.get_nside(map_mask)
+        nside     = healpy.pixelfunc.get_nside(map_mask)
         if isinstance(mask2,str):
-                map_mask2 = hp.read_map(mask2, dtype=np.float64)
+                map_mask2 = healpy.read_map(mask2, dtype=np.float64)
         elif isinstance(mask2,np.ndarray):
                 map_mask2 = mask2
-        nside2    = hp.pixelfunc.get_nside(map_mask2)
+        nside2    = healpy.pixelfunc.get_nside(map_mask2)
         assert nside==nside2, 'The resolutions (nside) of both masks need to be the same.'
 
 ##### test_multimask #####
@@ -1613,7 +1495,7 @@ def test_inputs_angpow(cosmo_params=AngPow_cosmo_params, cosmo_Class=None, order
 
 ##### get_cosmo #####
 def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
-    """Routine to run CLASS if needed, then compute arrays of comoving distance, volume etc necessary for Sij routines.
+    """Auxiliary routine to run CLASS if needed, then compute arrays of comoving distance, volume etc necessary for Sij routines.
 
     Parameters
     ----------
@@ -1629,7 +1511,7 @@ def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
     Returns
     -------
     tuple
-        cosmo, h, comov_dist, dcomov_dist, dV_dz, growth
+        cosmo, h, comov_dist, dcomov_dist, growth
     """
 
     nz = z_arr.size
@@ -1650,16 +1532,112 @@ def get_cosmo(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
     zofr        = cosmo.z_of_r(z_arr)
     comov_dist  = zofr[0]                                   #Comoving distance r(z) in Mpc
     dcomov_dist = 1/zofr[1]                                 #Derivative dr/dz in Mpc
-    dV_dz       = comov_dist**2 * dcomov_dist               #Comoving volume per solid angle dV/dz in Mpc^3/sr
     growth      = np.zeros(nz)                              #Growth factor
     for iz in range(nz):
         growth[iz] = cosmo.scale_independent_growth_factor(z_arr[iz])
 
-    return cosmo, h, comov_dist, dcomov_dist, dV_dz, growth
+    return cosmo, h, comov_dist, dcomov_dist, growth
+
+##### get_dX_dz #####
+def get_dX_dz(comov_dist, dcomov_dist, convention=0):
+    """Auxiliary routine to compute the element of integration for z integrals in Sij routines.
+
+    Parameters
+    ----------
+    comov_dist : numpy.ndarray
+        Input 1D array of comoving distance r(z).
+
+    dcomov_dist : numpy.ndarray
+        Input 1D array of derivative of comoving distance dr/dz. Same size as comov_dist.
+
+    convention : int, default 0
+        Integer to dictate the convention used in the definition of the kernels.
+        0 = Lacasa & Grain 2019.
+        1 = Cosmosis, Euclid Forecasts (Blanchard et al 2020).
+
+    Returns
+    -------
+    float
+        dX_dz
+    """
+    if convention==0:    # Default: comoving volume dV = r^2 dr. Convention of Lacasa & Grain 2019
+        dX_dz = comov_dist**2 * dcomov_dist
+    elif convention==1:  # Convention of Cosmosis, Euclid Forecasts (Blanchard et al 2020)
+        dX_dz = dcomov_dist / comov_dist**2
+    else:
+        raise ValueError('convention must be either 0 or 1')
+    
+    return dX_dz
+
+def get_mask_quantities(clmask=None,mask=None,mask2=None,verbose=False):
+    """Auxiliary routine to compute different mask quantities (ell,Cl,fsky) for partial sky Sij routines.
+
+    Parameters
+    ----------
+    clmask : str or numpy.ndarray, default None
+        Array or path to fits file containing the angular power spectrum of the mask.
+        To be used when the observable(s) have a single mask.
+
+    mask : str or numpy.ndarray, default None
+        Array or path to fits file containing the mask in healpix form.
+        PySSC will use healpy to compute the mask power spectrum.
+        It is faster to directly give clmask if you have it (particularly when calling PySSC several times).
+        To be used when the observable(s) have a single mask.
+
+    mask2 : str or numpy.ndarray, default None
+        Array or path to fits file containing a potential second mask in healpix form.
+        In the case where you want the covariance between observables measured on different areas of the sky.
+        PySSC will use healpy to compute the mask cross-spectrum.
+        Again, it is faster to directly give clmask if you have it.
+        If mask is set and mask2 is None, PySSC assumes that all observables share the same mask.
+
+    verbose : bool, default False
+        Verbosity of the routine.
+
+    Returns
+    -------
+    tuple
+        ell, cl_mask, fsky
+    """
+    import healpy
+    if mask is None: # User gives Cl(mask)
+        if verbose:
+            print('Using given Cls')
+        if isinstance(clmask,str):
+            cl_mask = healpy.fitsfunc.read_cl(str(clmask))
+        elif isinstance(clmask,np.ndarray):
+            cl_mask = clmask
+        ell = np.arange(len(cl_mask))
+        lmaxofcl = ell.max()
+    else : # User gives mask as a map
+        if verbose:
+            print('Using given mask map')
+        if isinstance(mask,str):
+            map_mask = healpy.read_map(mask, dtype=np.float64)
+        elif isinstance(mask,np.ndarray):
+            map_mask = mask
+        nside    = healpy.pixelfunc.get_nside(map_mask)
+        lmaxofcl = 2*nside
+        if mask2 is None:
+            map_mask2 = copy.copy(map_mask)
+        else:
+            if isinstance(mask2,str):
+                map_mask2 = healpy.read_map(mask2, dtype=np.float64)
+            elif isinstance(mask2,np.ndarray):
+                map_mask2 = mask2
+        cl_mask  = healpy.anafast(map_mask, map2=map_mask2, lmax=lmaxofcl)
+        ell      = np.arange(lmaxofcl+1)
+
+    # Compute fsky from the mask
+    fsky = np.sqrt(cl_mask[0]/(4*np.pi))
+    if verbose:
+        print('f_sky = %.4f' %(fsky))
+
+    return ell, cl_mask, fsky
 
 ##### find_lmax #####
 def find_lmax(ell, cl_mask, var_tol, debug=False):
-    """Routine to search the best lmax for all later sums on multipoles.
+    """Auxiliary routine to search the best lmax for all later sums on multipoles.
 
     Computes the smallest lmax so that we reach convergence of the variance
     ..math ::
