@@ -684,8 +684,10 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     from scipy.special import spherical_jn as jn
     from scipy.special import jv as Jn
 
+    # Check inputs
+    test_zw(z_arr, kernels)
     # Find number of redshifts and bins    
-    nz    = z_arr.size
+    nz    = np.size(z_arr)
     nbins = kernels.shape[0]
 
     theta = theta*np.pi/180. #converts in radians
