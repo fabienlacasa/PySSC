@@ -719,16 +719,16 @@ def Sij_flatsky(z_arr, kernels, bin_centres, theta, cosmo_params=default_cosmo_p
     if verbose: print('Computing flat-sky approximation')
     Sij = np.zeros((nbins,nbins))
     for ibin in range(nbins):
-        z1 = zstakes[ibin]
+        z1 = bin_centres[ibin]
         r1 = cosmo.z_of_r([z1])[0][0]
         dr1 = comov_dist[kernels[ibin,:]!=0].max()-comov_dist[kernels[ibin,:]!=0].min() #width of function function
 
         for jbin in range(nbins):
-            z2 = zstakes[jbin]
+            z2 = bin_centres[jbin]
             r2 = cosmo.z_of_r([z2])[0][0]
             dr2 = comov_dist[kernels[jbin,:]!=0].max()-comov_dist[kernels[jbin,:]!=0].min() #width of kernel
 
-            z12 = np.mean([zstakes[ibin],zstakes[jbin]])
+            z12 = np.mean([bin_centres[ibin],bin_centres[jbin]])
 
             growth = cosmo.scale_independent_growth_factor(z12)
             Pk = np.array([cosmo.pk(k_arr[i,j],0.) for i in range(nk_perp) for j in range(nk_par)])
