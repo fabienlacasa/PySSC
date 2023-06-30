@@ -344,9 +344,7 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
 
     with :math:`I_\mathrm{norm}(i) = \int dX \ W(i,z)^\mathrm{order}` and \
     :math:`\sigma^2(z_1,z_2) = \\frac{1}{2\pi^2} \int k^2 dk \ P(k|z_1,z_2) \ j_0(kr_1) j_0(kr_2)`.
-    The latter can be rewritten as \
-    :math:`\sigma^2(z_1,z_2) = \\frac{1}{2 \pi^2 r_1 r_2} G(z_1) G(z_2) \int dk \ P(k,z=0) \left[\cos\left(k(r_1-r_2)\\right)-\cos\left(k(r_1+r_2)\\right)\\right]/2` \
-    and computed with an FFT.
+    The latter is computed with the auxiliary function sigma2_fullsky.
 
     :math:`dX` depends on the convention used to define the observable's kernel:
 
@@ -360,53 +358,16 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
     which is a constant so does not matter in the ratio here.
     """
 
-    # Find number of redshifts and bins    
-    nz    = z_arr.size
+    # Find number of bins
     nbins = kernels.shape[0]
     
     #Get cosmology, comoving distances etc from dedicated auxiliary routine
     cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
 
     #Get element of z integration, depending on kernel convention
-    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)
-    
-    keq         = 0.02/h                                    #Equality matter radiation in 1/Mpc (more or less)
-    klogwidth   = 10                                        #Factor of width of the integration range.
-    #10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
-    kmin        = min(keq,1./comov_dist.max())/klogwidth
-    kmax        = max(keq,1./comov_dist.min())*klogwidth
-    nk_fft      = 2**11                                     #seems to be enough. Increase to test precision, reduce to speed up.
-    k_4fft      = np.linspace(kmin,kmax,nk_fft)             #linear grid on k, as we need to use an FFT
-    Deltak      = kmax - kmin
-    Dk          = Deltak/nk_fft
-    Pk_4fft     = np.zeros(nk_fft)
-    for ik in range(nk_fft):
-        Pk_4fft[ik] = cosmo.pk(k_4fft[ik],0.)               #In Mpc^3
-    dr_fft      = np.linspace(0,nk_fft//2,nk_fft//2+1)*2*pi/Deltak
-    
-    # Compute necessary FFTs and make interpolation functions
-    fft0        = np.fft.rfft(Pk_4fft)*Dk
-    dct0        = fft0.real ; dst0 = -fft0.imag
-    Pk_dct      = interp1d(dr_fft,dct0,kind='cubic')
-    
-    # Compute sigma^2(z1,z2)
-    sigma2_nog = np.zeros((nz,nz))
-    #First with P(k,z=0) and z1<=z2
-    for iz in range(nz):
-        r1 = comov_dist[iz]
-        for jz in range(iz,nz):
-            r2                = comov_dist[jz]
-            rsum              = r1+r2
-            rdiff             = abs(r1-r2)
-            Icp0              = Pk_dct(rsum) ; Icm0 = Pk_dct(rdiff)
-            sigma2_nog[iz,jz] = (Icm0-Icp0)/(4*pi**2 * r1 * r2)
-    #Now fill by symmetry and put back growth functions
-    sigma2      = np.zeros((nz,nz))
-    for iz in range(nz):
-        growth1 = growth[iz]
-        for jz in range(nz):
-            growth2       = growth[jz]
-            sigma2[iz,jz] = sigma2_nog[min(iz,jz),max(iz,jz)]*growth1*growth2            
+    dX_dz = get_dX_dz(comov_dist, dcomov_dist, convention=convention)   
+
+    sigma2 = sigma2_fullsky(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None)         
 
     # Compute normalisations
     Inorm       = np.zeros(nbins)
@@ -429,6 +390,85 @@ def Sij_alt_fullsky(z_arr, kernels, order=2, cosmo_params=default_cosmo_params, 
             Sij[i1,i2] = Sij[min(i1,i2),max(i1,i2)]
     
     return Sij
+
+##### sigma2_fullsky #####
+def sigma2_fullsky(z_arr, cosmo_params=default_cosmo_params, cosmo_Class=None):
+    """Routine to compute sigma^2(z1,z2) in full sky.
+
+    Parameters
+    ----------
+    z_arr : array_like
+       Input array of redshifts of size nz.
+
+    cosmo_params : dict, default `default_cosmo_params`
+       Dictionary of cosmology or cosmological parameters that can be accepted by ``classy``
+
+    cosmo_Class : classy.Class object, default None
+       classy.Class object containing precomputed cosmology.
+       If you already have it and do not want PySSC to lose time recomputing cosmology with CLASS.
+
+    Returns
+    -------
+
+    array_like
+       sigma2 array of shape (nz, nz).
+
+    Notes
+    -----
+    Equation used
+
+    :math:`\sigma^2(z_1,z_2) = \\frac{1}{2\pi^2} \int k^2 dk \ P(k|z_1,z_2) \ j_0(kr_1) j_0(kr_2)`.
+    The latter can be rewritten as \
+    :math:`\sigma^2(z_1,z_2) = \\frac{1}{2 \pi^2 r_1 r_2} G(z_1) G(z_2) \int dk \ P(k,z=0) \left[\cos\left(k(r_1-r_2)\\right)-\cos\left(k(r_1+r_2)\\right)\\right]/2` \
+    and computed with an FFT.
+
+    """
+
+    # Find number of redshifts    
+    nz    = z_arr.size
+    
+    #Get cosmology, comoving distances etc from dedicated auxiliary routine
+    cosmo, h, comov_dist, dcomov_dist, growth = get_cosmo(z_arr, cosmo_params=cosmo_params, cosmo_Class=cosmo_Class)
+    
+    keq         = 0.02/h                                    #Equality matter radiation in 1/Mpc (more or less)
+    klogwidth   = 10                                        #Factor of width of the integration range.
+    #10 seems ok ; going higher needs to increase nk_fft to reach convergence (fine cancellation issue noted in Lacasa & Grain)
+    kmin        = min(keq,1./comov_dist.max())/klogwidth
+    kmax        = max(keq,1./comov_dist.min())*klogwidth
+    nk_fft      = 2**11                                     #seems to be enough. Increase to test precision, reduce to speed up.
+    k_4fft      = np.linspace(kmin,kmax,nk_fft)             #linear grid on k, as we need to use an FFT
+    Deltak      = kmax - kmin
+    Dk          = Deltak/nk_fft
+    Pk_4fft     = np.zeros(nk_fft)
+    for ik in range(nk_fft):
+        Pk_4fft[ik] = cosmo.pk(k_4fft[ik],0.)               #In Mpc^3
+    dr_fft      = np.linspace(0,nk_fft//2,nk_fft//2+1)*2*pi/Deltak
+    
+    # Compute necessary FFTs and make interpolation functions
+    fft0        = np.fft.rfft(Pk_4fft)*Dk
+    dct0        = fft0.real ; dst0 = -fft0.imag
+    Pk_dct      = interp1d(dr_fft,dct0,kind='cubic')
+    
+    # Compute sigma^2(z1,z2)
+    sigma2_nog = np.zeros((nz,nz))
+    #First without growth functions (i.e. with P(k,z=0)) and z1<=z2
+    for iz in range(nz):
+        r1 = comov_dist[iz]
+        for jz in range(iz,nz):
+            r2                = comov_dist[jz]
+            rsum              = r1+r2
+            rdiff             = abs(r1-r2)
+            Icp0              = Pk_dct(rsum) ; Icm0 = Pk_dct(rdiff)
+            sigma2_nog[iz,jz] = (Icm0-Icp0)/(4*pi**2 * r1 * r2)
+    #Now fill by symmetry and put back growth functions
+    sigma2      = np.zeros((nz,nz))
+    for iz in range(nz):
+        growth1 = growth[iz]
+        for jz in range(nz):
+            growth2       = growth[jz]
+            sigma2[iz,jz] = sigma2_nog[min(iz,jz),max(iz,jz)]*growth1*growth2            
+    
+    return sigma2
 
 ####################################################################################################
 #################################       PARTIAL SKY ROUTINES       #################################
