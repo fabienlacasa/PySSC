@@ -17,6 +17,7 @@ Several full-sky implementation are available to compute the Sij matrix.
 
 .. autofunction:: PySSC.Sij_fullsky
 .. autofunction:: PySSC.Sij_alt_fullsky
+.. autofunction:: PySSC.sigma2_fullsky
 .. autofunction:: PySSC.Sij_AngPow_fullsky
 
 And only one is implemented for the Sijkl matrix:
